@@ -301,7 +301,7 @@ function renderCanvas() {
     
     if (state.elements.length === 0) {
         canvas.innerHTML = `
-            <div class="h-full w-full flex flex-col items-center justify-center text-slate-400 mt-20 bg-white/80 p-8 rounded-xl backdrop-blur-sm shadow-[0_0_25px_rgba(0,0,0,0.15)] inline-block mx-auto text-center">
+<div class="pointer-events-none select-none h-full w-full flex flex-col items-center justify-center text-slate-400 mt-20 bg-white/80 p-8 rounded-xl backdrop-blur-sm shadow-[0_0_25px_rgba(0,0,0,0.15)] inline-block mx-auto text-center">
                 <i data-feather="layout" class="w-16 h-16 mb-4 opacity-40 mx-auto"></i>
                 <p class="text-lg font-bold text-slate-600">Seu site está vazio!</p>
                 <p class="text-sm mt-2">Arraste os blocos da esquerda para cá.</p>
