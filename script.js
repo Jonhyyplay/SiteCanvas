@@ -10,7 +10,7 @@ const blockTypes = [
     { type: 'button', icon: 'play-circle', label: 'Botão', defaultProps: { content: 'Clique Aqui', href: '', styles: { backgroundColor: '#8b5cf6', color: '#ffffff', padding: '14px 28px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem', display: 'inline-block', margin: '0', textAlign: 'center', textDecoration: 'none' } } },
     { type: 'link', icon: 'link', label: 'Link', defaultProps: { content: 'Exemplo de Texto do Link', href: 'https://exemplo.com', styles: { color: '#3b82f6', textDecoration: 'underline', fontSize: '1.1rem', margin: '0', display: 'inline-block' } } },
     { type: 'list', icon: 'list', label: 'Lista', defaultProps: { content: 'Primeiro item\nSegundo item\nTerceiro item', styles: { paddingLeft: '24px', margin: '0', color: '#475569', fontSize: '1.1rem' } } },
-    { type: 'card', icon: 'layout', label: 'Card', defaultProps: { cardTitle: 'Título do Card', cardSubtitle: 'Subtítulo', content: 'Texto descritivo para o seu card.', cardImage: '', cardButton: 'Saber mais', cardButtonLink: '#', styles: { padding: '24px', backgroundColor: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', margin: '0', textAlign: 'left' } } },
+    { type: 'card', icon: 'layout', label: 'Card', defaultProps: { cardTitle: 'Título do Card', cardSubtitle: 'Subtítulo', content: 'Texto descritivo para o seu card.', cardImage: '', cardButton: 'Saber mais', cardButtonLink: '#', cardTitleColor: '#1e293b', cardSubtitleColor: '#64748b', cardTextColor: '#475569', styles: { padding: '24px', backgroundColor: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', margin: '0', textAlign: 'left' } } },
     { type: 'separator', icon: 'minus', label: 'Linha', defaultProps: { styles: { border: 'none', borderTop: '2px dashed #cbd5e1', margin: '15px 0' } } },
     { type: 'video', icon: 'youtube', label: 'Vídeo', defaultProps: { src: '', styles: { width: '100%', aspectRatio: '16/9', height: 'auto', borderRadius: '12px', margin: '0', border: 'none' } } },];
 
@@ -244,12 +244,12 @@ function getElementHTMLContent(el, isExport = false) {
             break;
         case 'card': 
             let cImg = el.cardImage ? `<img src="${el.cardImage}" style="width: 100%; border-radius: 8px; margin-bottom: 15px; object-fit: cover; max-height: 200px;">` : '';
-            let cTit = el.cardTitle ? `<h3 style="font-size: 1.25rem; font-weight: bold; color: #1e293b; margin-bottom: 4px; word-break: break-word;">${el.cardTitle}</h3>` : '';
-            let cSub = el.cardSubtitle ? `<h4 style="font-size: 0.9rem; color: #64748b; margin-bottom: 12px; word-break: break-word;">${el.cardSubtitle}</h4>` : '';
-            let cTxt = el.content ? `<p style="font-size: 1rem; color: #475569; margin-bottom: 16px; word-break: break-word;">${el.content}</p>` : '';
+            // Trocámos as cores fixas pelas variáveis dinâmicas do bloco
+            let cTit = el.cardTitle ? `<h3 style="font-size: 1.25rem; font-weight: bold; color: ${el.cardTitleColor || '#1e293b'}; margin-bottom: 4px; word-break: break-word;">${el.cardTitle}</h3>` : '';
+            let cSub = el.cardSubtitle ? `<h4 style="font-size: 0.9rem; color: ${el.cardSubtitleColor || '#64748b'}; margin-bottom: 12px; word-break: break-word;">${el.cardSubtitle}</h4>` : '';
+            let cTxt = el.content ? `<p style="font-size: 1rem; color: ${el.cardTextColor || '#475569'}; margin-bottom: 16px; word-break: break-word;">${el.content}</p>` : '';
             let cBtn = el.cardButton ? `<a href="${el.cardButtonLink || '#'}" target="_blank" style="display: inline-block; padding: 8px 16px; background-color: #4f46e5; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 0.9rem;">${el.cardButton}</a>` : '';
             
-            // Cards recebem height: 100% para ficarem alinhados se estiverem lado a lado com outro card maior
             let cardStyle = styleAttr.replace('style="', 'style="height: 100%; overflow: hidden; display: flex; flex-direction: column; ');
             html = `<div${cardStyle}>
                 ${cImg}
@@ -489,13 +489,22 @@ function renderPropertiesPanel() {
             </div>
             
             <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Título Principal</label>
-            <input type="text" class="w-full p-2.5 mb-3 text-sm border border-slate-300 rounded-lg focus:border-indigo-500 outline-none" value="${el.cardTitle || ''}" oninput="updateElement('${el.id}', 'cardTitle', this.value)">
+            <div class="flex gap-2 mb-3">
+                <input type="text" class="w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:border-indigo-500 outline-none" value="${el.cardTitle || ''}" oninput="updateElement('${el.id}', 'cardTitle', this.value)">
+                <input type="color" class="w-10 h-10 p-0.5 border border-slate-300 rounded-lg cursor-pointer flex-shrink-0" value="${el.cardTitleColor || '#1e293b'}" oninput="updateElement('${el.id}', 'cardTitleColor', this.value)">
+            </div>
             
             <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Subtítulo</label>
-            <input type="text" class="w-full p-2.5 mb-3 text-sm border border-slate-300 rounded-lg focus:border-indigo-500 outline-none" value="${el.cardSubtitle || ''}" oninput="updateElement('${el.id}', 'cardSubtitle', this.value)">
+            <div class="flex gap-2 mb-3">
+                <input type="text" class="w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:border-indigo-500 outline-none" value="${el.cardSubtitle || ''}" oninput="updateElement('${el.id}', 'cardSubtitle', this.value)">
+                <input type="color" class="w-10 h-10 p-0.5 border border-slate-300 rounded-lg cursor-pointer flex-shrink-0" value="${el.cardSubtitleColor || '#64748b'}" oninput="updateElement('${el.id}', 'cardSubtitleColor', this.value)">
+            </div>
             
             <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Texto Descritivo</label>
-            <textarea rows="3" class="w-full p-2.5 mb-3 text-sm border border-slate-300 rounded-lg focus:border-indigo-500 outline-none">${el.content}</textarea>
+            <div class="flex gap-2 mb-3 items-start">
+                <textarea rows="3" class="w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:border-indigo-500 outline-none">${el.content}</textarea>
+                <input type="color" class="w-10 h-10 p-0.5 border border-slate-300 rounded-lg cursor-pointer flex-shrink-0" value="${el.cardTextColor || '#475569'}" oninput="updateElement('${el.id}', 'cardTextColor', this.value)">
+            </div>
             
             <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Texto do Botão (Vazio = Oculto)</label>
             <input type="text" class="w-full p-2.5 mb-3 text-sm border border-slate-300 rounded-lg focus:border-indigo-500 outline-none" value="${el.cardButton || ''}" oninput="updateElement('${el.id}', 'cardButton', this.value)">
