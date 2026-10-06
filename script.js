@@ -716,6 +716,7 @@ const htmlGenerator = {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SiteCanvas</title>
+    <link rel="icon" href="favicon.png" type="image/png">
     <style>
         body { 
             font-family: system-ui, -apple-system, sans-serif; 
@@ -756,7 +757,7 @@ const actions = {
     showCode() {
         checkMission('m6');
         const htmlStr = htmlGenerator.generateEducationalHTML(state.elements);
-        const fullHTML = `<!DOCTYPE html>\n<html lang="pt-BR">\n<head>\n    <meta charset="UTF-8">\n    <title>SiteCanvas</title>\n    <!-- As cores e o design estão na aba CSS ao lado! -->\n    <link rel="stylesheet" href="style.css">\n</head>\n<body>\n    <div class="container">\n${htmlStr}    </div>\n</body>\n</html>`;
+        const fullHTML = `<!DOCTYPE html>\n<html lang="pt-BR">\n<head>\n    <meta charset="UTF-8">\n    <title>SiteCanvas</title>\n    <link rel="icon" href="favicon.png" type="image/png">\n    <!-- As cores e o design estão na aba CSS ao lado! -->\n    <link rel="stylesheet" href="style.css">\n</head>\n<body>\n    <div class="container">\n${htmlStr}    </div>\n</body>\n</html>`;
         
         const safeHTML = fullHTML.replace(/</g, '&lt;').replace(/>/g, '&gt;');
         
@@ -820,7 +821,7 @@ const actions = {
         reader.readAsText(file);
     },
     
-    previewSite() {
+    previewSite() { //  ALTERAR ISSO AQUI!!!!!!!!!!!!!!
         checkMission('m8');
         
         const rawHTML = state.elements.map(el => {
