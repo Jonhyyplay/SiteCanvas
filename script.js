@@ -75,15 +75,6 @@ function saveState() {
     updateProgress();
 }
 
-function saveState() {
-    localStorage.setItem(STATE_KEY, JSON.stringify({
-        elements: state.elements,
-        missions: state.missions,
-        pageSettings: state.pageSettings
-    }));
-    updateProgress();
-}
-
 // --- 3. GAMIFICAÇÃO ---
 
 // --- SISTEMA DE NOTIFICAÇÕES (TOAST) ---
@@ -215,6 +206,7 @@ function getElementHTMLContent(el, isExport = false) {
         case 'text': html = `<p${styleAttr} style="word-break: break-word;">${el.content}</p>`; break;
         case 'image': 
             if (!el.src || el.src.trim() === '') {
+                if (isExport) return ''; // Impede que o placeholder vaze para o site final
                 // Se não houver link, desenha a caixa pontilhada de placeholder
                 let phImgStyle = styleAttr.replace('style="', 'style="background-color: #f1f5f9; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 2px dashed #cbd5e1; min-height: 250px; ');
                 html = `<div${phImgStyle}>
@@ -262,6 +254,7 @@ function getElementHTMLContent(el, isExport = false) {
         case 'separator': html = `<hr${styleAttr} />`; break;
         case 'video': 
             if (!el.src || el.src.trim() === '') {
+                 if (isExport) return ''; // Impede que o placeholder vaze para o site final
                 // Se não houver link, desenha uma caixa pontilhada amigável
                 let phStyle = styleAttr.replace('style="', 'style="background-color: #f1f5f9; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 2px dashed #cbd5e1; ');
                 html = `<div${phStyle}>
@@ -422,13 +415,13 @@ function renderPropertiesPanel() {
                 
                 <div class="p-3 bg-indigo-50 border border-indigo-100 rounded-xl relative">
                     <label class="block text-xs font-bold text-indigo-700 uppercase mb-2"><i data-feather="upload-cloud" class="w-3 h-3 inline"></i> Upload de Imagem de Fundo</label>
-                    <input type="file" accept="image/png, image/jpeg, image/jpg" class="text-xs w-full text-slate-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 cursor-pointer" onchange="handleImageUpload(this, (base64) => actions.updatePageSettings('backgroundImage', base64))">
-                    ${state.pageSettings.backgroundImage ? `<button onclick="actions.updatePageSettings('backgroundImage', '')" class="w-full mt-3 py-1.5 bg-white border border-red-200 hover:bg-red-50 text-red-600 rounded-md text-xs font-bold transition flex items-center justify-center gap-1"><i data-feather="trash-2" class="w-3 h-3 inline"></i> Remover Fundo Atual</button>` : ''}
+                    <input type="file" accept="image/png, image/jpeg, image/jpg" class="text-xs w-full text-slate-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 cursor-pointer" onchange="handleImageUpload(this, (base64) => actions.updatePageSettings('backgroundImage', base64, true))">
+                    ${state.pageSettings.backgroundImage ? `<button onclick="actions.updatePageSettings('backgroundImage', '', true)" class="w-full mt-3 py-1.5 bg-white border border-red-200 hover:bg-red-50 text-red-600 rounded-md text-xs font-bold transition flex items-center justify-center gap-1"><i data-feather="trash-2" class="w-3 h-3 inline"></i> Remover Fundo Atual</button>` : ''}
                 </div>
 
                 <div>
                     <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Ou Cole o URL da Imagem</label>
-                    <input type="text" class="w-full p-2.5 text-xs font-mono border border-slate-300 rounded-lg focus:border-indigo-500 outline-none" value="${state.pageSettings.backgroundImage?.startsWith('data:') ? '' : state.pageSettings.backgroundImage}" oninput="actions.updatePageSettings('backgroundImage', this.value)" placeholder="Ex: https://...">
+                    <input type="text" class="w-full p-2.5 text-xs font-mono border border-slate-300 rounded-lg focus:border-indigo-500 outline-none" value="${state.pageSettings.backgroundImage?.startsWith('data:') ? '' : state.pageSettings.backgroundImage}" onchange="actions.updatePageSettings('backgroundImage', this.value, true)" placeholder="Ex: Cole o link e clique fora da caixa...">
                 </div>
 
                 <div>
@@ -598,7 +591,7 @@ function renderPropertiesPanel() {
         return row;
     };
 
-    if (!['image', 'separator', 'video'].includes(el.type)) {
+    if (!['image', 'separator', 'video', 'card'].includes(el.type)) {
         const colorRow = createStyleRow('Cor da Letra', `<input type="color" class="w-full h-8 cursor-pointer rounded border border-slate-200" value="${el.styles.color || '#000000'}">`);
         colorRow.querySelector('input').oninput = (e) => updateElement(el.id, 'color', e.target.value, true);
         styleSection.appendChild(colorRow);
@@ -688,12 +681,12 @@ const htmlGenerator = {
         return html;
     },
 
-    generateCSSContent() {
+   generateCSSContent() {
         let bgStyle = `background-color: ${state.pageSettings.backgroundColor};`;
         if (state.pageSettings.backgroundImage) {
             bgStyle += ` background-image: url('${state.pageSettings.backgroundImage}'); background-size: ${state.pageSettings.backgroundSize}; background-position: center; background-attachment: fixed;`;
         }
-        return `body {\n    font-family: system-ui, -apple-system, sans-serif;\n    line-height: 1.5;\n    margin: 0;\n    padding: 40px 20px;\n    ${bgStyle}\n}\n\n.container {\n    max-width: 800px;\n    margin: 0 auto;\n    background: rgba(255, 255, 255, 0.95);\n    padding: 40px;\n    border-radius: 16px;\n    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);\n    backdrop-filter: blur(10px);\n    display: flex;\n    flex-wrap: wrap;\n    align-content: flex-start;\n    align-items: flex-start;\n}\n\nimg {\n    max-width: 100%;\n    height: auto;\n}`;
+        return `body {\n    font-family: system-ui, -apple-system, sans-serif;\n    line-height: 1.5;\n    margin: 0;\n    padding: 0;\n    ${bgStyle}\n}\n\n.container {\n    width: 100%;\n    max-width: 1200px;\n    margin: 0 auto;\n    padding: 40px 20px;\n    display: flex;\n    flex-wrap: wrap;\n    align-content: flex-start;\n    align-items: flex-start;\n}\n\nimg {\n    max-width: 100%;\n    height: auto;\n}`;
     },
 
     generateFullDocument(elements, addComments = false) {
@@ -726,13 +719,10 @@ const htmlGenerator = {
             ${bgStyle}
         }
         .container { 
-            max-width: 800px; 
+            width: 100%; 
+            max-width: 1200px; 
             margin: 0 auto; 
-            background: rgba(255, 255, 255, 0.95); 
-            padding: 40px; 
-            border-radius: 16px; 
-            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); 
-            backdrop-filter: blur(10px);
+            padding: 40px 20px; 
             display: flex;
             flex-wrap: wrap;
             align-content: flex-start;
@@ -755,7 +745,7 @@ ${bodyContent}
 
 const actions = {
     showCode() {
-        checkMission('m6');
+        checkMission('m7');
         const htmlStr = htmlGenerator.generateEducationalHTML(state.elements);
         const fullHTML = `<!DOCTYPE html>\n<html lang="pt-BR">\n<head>\n    <meta charset="UTF-8">\n    <title>SiteCanvas</title>\n    <link rel="icon" href="favicon.png" type="image/png">\n    <!-- As cores e o design estão na aba CSS ao lado! -->\n    <link rel="stylesheet" href="style.css">\n</head>\n<body>\n    <div class="container">\n${htmlStr}    </div>\n</body>\n</html>`;
         
@@ -821,7 +811,7 @@ const actions = {
         reader.readAsText(file);
     },
     
-    previewSite() { //  ALTERAR ISSO AQUI!!!!!!!!!!!!!!
+    previewSite() {
         checkMission('m8');
         
         const rawHTML = state.elements.map(el => {
@@ -837,8 +827,8 @@ const actions = {
         const previewContainer = document.getElementById('preview-content');
         
         previewContainer.innerHTML = `
-            <div style="min-height: 100vh; padding: 40px 20px; ${bgStyle}">
-                <div style="max-width: 800px; margin: 0 auto; background: rgba(255,255,255,0.95); padding: 40px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); backdrop-filter: blur(10px); display: flex; flex-wrap: wrap; align-content: flex-start; align-items: flex-start;">
+            <div style="min-height: 100vh; padding: 0; ${bgStyle}">
+                <div style="width: 100%; max-width: 1200px; margin: 0 auto; padding: 40px 20px; display: flex; flex-wrap: wrap; align-content: flex-start; align-items: flex-start;">
                     ${rawHTML}
                 </div>
             </div>
@@ -868,11 +858,15 @@ const actions = {
         }
     },
 
-    updatePageSettings(key, value) {
+    updatePageSettings(key, value, redrawPanel = false) {
         state.pageSettings[key] = value;
         pushToHistory();
         renderCanvas();
-        renderPropertiesPanel();
+        
+        // Só redesenha o painel lateral se for estritamente necessário (redrawPanel = true)
+        if (redrawPanel) {
+            renderPropertiesPanel();
+        }
     },
 
     exportSite() {
