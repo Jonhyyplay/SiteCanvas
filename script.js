@@ -10,8 +10,7 @@ const blockTypes = [
     { type: 'button', icon: 'play-circle', label: 'Botão', defaultProps: { content: 'Clique Aqui', href: '', styles: { backgroundColor: '#8b5cf6', color: '#ffffff', padding: '14px 28px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem', display: 'inline-block', margin: '0', textAlign: 'center', textDecoration: 'none' } } },
     { type: 'link', icon: 'link', label: 'Link', defaultProps: { content: 'Exemplo de Texto do Link', href: 'https://exemplo.com', styles: { color: '#3b82f6', textDecoration: 'underline', fontSize: '1.1rem', margin: '0', display: 'inline-block' } } },
     { type: 'list', icon: 'list', label: 'Lista', defaultProps: { content: 'Primeiro item\nSegundo item\nTerceiro item', styles: { paddingLeft: '24px', margin: '0', color: '#475569', fontSize: '1.1rem' } } },
-    { type: 'card', icon: 'layout', label: 'Card', defaultProps: { cardTitle: 'Título do Card', cardSubtitle: 'Subtítulo', content: 'Texto descritivo para o seu card.', cardImage: '', cardButton: 'Saber mais', cardButtonLink: '#', cardTitleColor: '#1e293b', cardSubtitleColor: '#64748b', cardTextColor: '#475569', styles: { padding: '24px', backgroundColor: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', margin: '0', textAlign: 'left' } } },
-    { type: 'separator', icon: 'minus', label: 'Linha', defaultProps: { styles: { border: 'none', borderTop: '2px dashed #cbd5e1', margin: '15px 0' } } },
+    { type: 'card', icon: 'layout', label: 'Card', defaultProps: { cardTitle: 'Título do Card', cardSubtitle: 'Subtítulo', content: 'Texto descritivo para o seu card.', cardImage: '', cardButton: 'Saber mais', cardButtonLink: '#', cardTitleColor: '#1e293b', cardSubtitleColor: '#64748b', cardTextColor: '#475569', cardButtonBgColor: '#4f46e5', cardButtonTextColor: '#ffffff', styles: { padding: '24px', backgroundColor: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', margin: '0', textAlign: 'left' } } },    { type: 'separator', icon: 'minus', label: 'Linha', defaultProps: { styles: { border: 'none', borderTop: '2px dashed #cbd5e1', margin: '15px 0' } } },
     { type: 'video', icon: 'youtube', label: 'Vídeo', defaultProps: { src: '', styles: { width: '100%', aspectRatio: '16/9', height: 'auto', borderRadius: '12px', margin: '0', border: 'none' } } },];
 
 const defaultElements = [];
@@ -259,7 +258,7 @@ function getElementHTMLContent(el, isExport = false) {
             break;
         
         case 'card': 
-            let cImg = el.cardImage ? `<img src="${el.cardImage}" style="width: 100%; border-radius: 8px; margin-bottom: 15px; object-fit: cover; max-height: 200px;">` : '';
+            let cImg = el.cardImage ? `<img src="${el.cardImage}" style="width: 100%; height: auto; border-radius: 8px; margin-bottom: 15px; display: block;">` : '';
             let cTit = el.cardTitle ? `<h3 style="font-size: 1.25em; font-weight: bold; color: ${el.cardTitleColor || '#1e293b'}; margin-bottom: 4px; word-break: break-word;">${el.cardTitle}</h3>` : '';
             let cSub = el.cardSubtitle ? `<h4 style="font-size: 0.9em; color: ${el.cardSubtitleColor || '#64748b'}; margin-bottom: 12px; word-break: break-word;">${el.cardSubtitle}</h4>` : '';
             let cTxt = el.content ? `<p style="font-size: 1em; color: ${el.cardTextColor || '#475569'}; margin-bottom: 16px; word-break: break-word;">${el.content}</p>` : '';
@@ -269,7 +268,7 @@ function getElementHTMLContent(el, isExport = false) {
             const cBtnHref = isExport ? (el.cardButtonLink || '#') : '#';
             const cBtnClick = !isExport ? ' onclick="event.preventDefault()"' : '';
             
-            let cBtn = el.cardButton ? `<a href="${cBtnHref}"${cardTarget}${cBtnClick} style="display: inline-block; padding: 8px 16px; background-color: #4f46e5; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 0.9em;">${el.cardButton}</a>` : '';
+            let cBtn = el.cardButton ? `<a href="${cBtnHref}"${cardTarget}${cBtnClick} style="display: inline-block; padding: 8px 16px; background-color: ${el.cardButtonBgColor || '#4f46e5'}; color: ${el.cardButtonTextColor || '#ffffff'}; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 0.9em;">${el.cardButton}</a>` : '';            
             
             let cardStyle = styleAttr.replace('style="', 'style="height: 100%; overflow: hidden; display: flex; flex-direction: column; ');
             html = `<div${cardStyle}>\n                ${cImg}\n                ${cTit}\n                ${cSub}\n                ${cTxt}\n                <div style="margin-top: auto;">${cBtn}</div>\n            </div>`; 
@@ -302,7 +301,7 @@ function renderCanvas() {
     canvas.style.display = 'flex';
     canvas.style.flexWrap = 'wrap';
     canvas.style.alignContent = 'flex-start';
-    canvas.style.alignItems = 'flex-start'; // Impede que a caixa azul estique verticalmente
+    canvas.style.alignItems = 'stretch'; // Impede que a caixa azul estique verticalmente
 
     // Configura fundo
     canvasBg.style.backgroundColor = state.pageSettings.backgroundColor;
@@ -522,8 +521,12 @@ function renderPropertiesPanel() {
                 <input type="color" class="w-10 h-10 p-0.5 border border-slate-300 rounded-lg cursor-pointer flex-shrink-0" value="${el.cardTextColor || '#475569'}" oninput="updateElement('${el.id}', 'cardTextColor', this.value)">
             </div>
             
-            <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Texto do Botão (Vazio = Oculto)</label>
-            <input type="text" class="w-full p-2.5 mb-3 text-sm border border-slate-300 rounded-lg focus:border-indigo-500 outline-none" value="${el.cardButton || ''}" oninput="updateElement('${el.id}', 'cardButton', this.value)">
+            <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Texto e Cores do Botão</label>
+            <div class="flex gap-2 mb-3">
+                <input type="text" class="w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:border-indigo-500 outline-none" value="${el.cardButton || ''}" placeholder="Deixe vazio para ocultar" oninput="updateElement('${el.id}', 'cardButton', this.value)">
+                <input type="color" class="w-10 h-10 p-0.5 border border-slate-300 rounded-lg cursor-pointer flex-shrink-0" value="${el.cardButtonTextColor || '#ffffff'}" title="Cor da Letra" oninput="updateElement('${el.id}', 'cardButtonTextColor', this.value)">
+                <input type="color" class="w-10 h-10 p-0.5 border border-slate-300 rounded-lg cursor-pointer flex-shrink-0" value="${el.cardButtonBgColor || '#4f46e5'}" title="Cor de Fundo" oninput="updateElement('${el.id}', 'cardButtonBgColor', this.value)">
+            </div>
             
             <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Link do Botão</label>
             <input type="text" class="w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:border-indigo-500 outline-none" value="${el.cardButtonLink || ''}" oninput="updateElement('${el.id}', 'cardButtonLink', this.value)">
@@ -542,6 +545,7 @@ function renderPropertiesPanel() {
             <div class="p-3 bg-indigo-50 border border-indigo-100 rounded-xl relative mb-4">
                 <label class="block text-xs font-bold text-indigo-700 uppercase mb-2"><i data-feather="upload-cloud" class="w-3 h-3 inline"></i> Fazer Upload de Imagem</label>
                 <input type="file" accept="image/png, image/jpeg, image/jpg" class="text-xs w-full text-slate-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 cursor-pointer" onchange="handleImageUpload(this, (base64) => updateElement('${el.id}', 'src', base64))">
+                ${el.src ? `<button onclick="updateElement('${el.id}', 'src', '')" class="w-full mt-3 py-1.5 bg-white border border-red-200 hover:bg-red-50 text-red-600 rounded-md text-xs font-bold transition flex items-center justify-center gap-1"><i data-feather="trash-2" class="w-3 h-3 inline"></i> Remover Imagem</button>` : ''}
             </div>
 
             <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Ou Cole a URL da Imagem</label>
@@ -724,7 +728,7 @@ const htmlGenerator = {
         if (state.pageSettings.backgroundImage) {
             bgStyle += ` background-image: url('${state.pageSettings.backgroundImage}'); background-size: ${state.pageSettings.backgroundSize}; background-position: center; background-attachment: fixed;`;
         }
-        return `body {\n    font-family: system-ui, -apple-system, sans-serif;\n    line-height: 1.5;\n    margin: 0;\n    padding: 40px 20px;\n    background-color: #f1f5f9;\n}\n\n.container {\n    width: 100%;\n    max-width: 1200px;\n    margin: 0 auto;\n    ${bgStyle}\n    padding: 40px;\n    border-radius: 16px;\n    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);\n    display: flex;\n    flex-wrap: wrap;\n    align-content: flex-start;\n    align-items: flex-start;\n    overflow: hidden;\n}\n\nimg {\n    max-width: 100%;\n    height: auto;\n}`;
+        return `body {\n    font-family: system-ui, -apple-system, sans-serif;\n    line-height: 1.5;\n    margin: 0;\n    padding: 40px 20px;\n    background-color: #f1f5f9;\n}\n\n.container {\n    width: 100%;\n    max-width: 1200px;\n    margin: 0 auto;\n    ${bgStyle}\n    padding: 40px;\n    border-radius: 16px;\n    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);\n    display: flex;\n    flex-wrap: wrap;\n    align-content: flex-start;\n    align-items: stretch;\n    overflow: hidden;\n}\n\nimg {\n    max-width: 100%;\n    height: auto;\n}`;
     },
 
     generateFullDocument(elements, addComments = false) {
@@ -767,7 +771,7 @@ const htmlGenerator = {
             display: flex;
             flex-wrap: wrap;
             align-content: flex-start;
-            align-items: flex-start;
+            align-items: stretch;
             overflow: hidden;
         }
         img { max-width: 100%; height: auto; }
