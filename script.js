@@ -260,16 +260,16 @@ function getElementHTMLContent(el, isExport = false) {
         
         case 'card': 
             let cImg = el.cardImage ? `<img src="${el.cardImage}" style="width: 100%; border-radius: 8px; margin-bottom: 15px; object-fit: cover; max-height: 200px;">` : '';
-            let cTit = el.cardTitle ? `<h3 style="font-size: 1.25rem; font-weight: bold; color: ${el.cardTitleColor || '#1e293b'}; margin-bottom: 4px; word-break: break-word;">${el.cardTitle}</h3>` : '';
-            let cSub = el.cardSubtitle ? `<h4 style="font-size: 0.9rem; color: ${el.cardSubtitleColor || '#64748b'}; margin-bottom: 12px; word-break: break-word;">${el.cardSubtitle}</h4>` : '';
-            let cTxt = el.content ? `<p style="font-size: 1rem; color: ${el.cardTextColor || '#475569'}; margin-bottom: 16px; word-break: break-word;">${el.content}</p>` : '';
+            let cTit = el.cardTitle ? `<h3 style="font-size: 1.25em; font-weight: bold; color: ${el.cardTitleColor || '#1e293b'}; margin-bottom: 4px; word-break: break-word;">${el.cardTitle}</h3>` : '';
+            let cSub = el.cardSubtitle ? `<h4 style="font-size: 0.9em; color: ${el.cardSubtitleColor || '#64748b'}; margin-bottom: 12px; word-break: break-word;">${el.cardSubtitle}</h4>` : '';
+            let cTxt = el.content ? `<p style="font-size: 1em; color: ${el.cardTextColor || '#475569'}; margin-bottom: 16px; word-break: break-word;">${el.content}</p>` : '';
 
             const isRealCardLink = el.cardButtonLink && el.cardButtonLink !== '#';
             const cardTarget = (isRealCardLink && isExport) ? ' target="_blank"' : '';
             const cBtnHref = isExport ? (el.cardButtonLink || '#') : '#';
             const cBtnClick = !isExport ? ' onclick="event.preventDefault()"' : '';
             
-            let cBtn = el.cardButton ? `<a href="${cBtnHref}"${cardTarget}${cBtnClick} style="display: inline-block; padding: 8px 16px; background-color: #4f46e5; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 0.9rem;">${el.cardButton}</a>` : '';
+            let cBtn = el.cardButton ? `<a href="${cBtnHref}"${cardTarget}${cBtnClick} style="display: inline-block; padding: 8px 16px; background-color: #4f46e5; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 0.9em;">${el.cardButton}</a>` : '';
             
             let cardStyle = styleAttr.replace('style="', 'style="height: 100%; overflow: hidden; display: flex; flex-direction: column; ');
             html = `<div${cardStyle}>\n                ${cImg}\n                ${cTit}\n                ${cSub}\n                ${cTxt}\n                <div style="margin-top: auto;">${cBtn}</div>\n            </div>`; 
@@ -626,7 +626,7 @@ function renderPropertiesPanel() {
         styleSection.appendChild(bgColorRow);
     }
 
-    if (['title', 'text', 'list', 'button', 'link'].includes(el.type)) {
+    if (['title', 'text', 'list', 'button', 'link', 'card'].includes(el.type)) {
         const sizeVal = el.styles.fontSize || '1rem';
         const sizeRow = createStyleRow('Tamanho Fonte', `
             <select class="w-full p-2 border border-slate-300 rounded text-sm outline-none">
@@ -639,6 +639,21 @@ function renderPropertiesPanel() {
         `);
         sizeRow.querySelector('select').onchange = (e) => updateElement(el.id, 'fontSize', e.target.value, true);
         styleSection.appendChild(sizeRow);
+
+        // NOVO: Menu de Tipografia (Web Safe Fonts)
+        const fontVal = el.styles.fontFamily || 'system-ui, -apple-system, sans-serif';
+        const fontRow = createStyleRow('Tipo de Fonte', `
+            <select class="w-full p-2 border border-slate-300 rounded text-sm outline-none">
+                <option value="system-ui, -apple-system, sans-serif" ${fontVal === 'system-ui, -apple-system, sans-serif' ? 'selected' : ''}>Moderna (Padrão)</option>
+                <option value="Arial, Helvetica, sans-serif" ${fontVal === 'Arial, Helvetica, sans-serif' ? 'selected' : ''}>Clara (Arial)</option>
+                <option value="'Times New Roman', Times, serif" ${fontVal === "'Times New Roman', Times, serif" ? 'selected' : ''}>Clássica (Serifada)</option>
+                <option value="'Courier New', Courier, monospace" ${fontVal === "'Courier New', Courier, monospace" ? 'selected' : ''}>Código (Monospace)</option>
+                <option value="'Comic Sans MS', 'Marker Felt', sans-serif" ${fontVal === "'Comic Sans MS', 'Marker Felt', sans-serif" ? 'selected' : ''}>Divertida (Quadrinhos)</option>
+                <option value="Impact, fantasy" ${fontVal === 'Impact, fantasy' ? 'selected' : ''}>Forte (Impact)</option>
+            </select>
+        `);
+        fontRow.querySelector('select').onchange = (e) => updateElement(el.id, 'fontFamily', e.target.value, true);
+        styleSection.appendChild(fontRow);
     }
 
     if (['title', 'text', 'card'].includes(el.type)) {
