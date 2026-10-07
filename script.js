@@ -57,22 +57,40 @@ function pushToHistory() {
 function generateId() { return 'el_' + Math.random().toString(36).substr(2, 9); }
 
 function loadState() {
-    // Carrega sempre o modelo inicial do zero, ignorando a memória do navegador
-    state.elements = JSON.parse(JSON.stringify(defaultElements));
-    state.missions = JSON.parse(JSON.stringify(initialMissions));
-    state.pageSettings = { backgroundColor: '#ffffff', backgroundImage: '', backgroundSize: 'cover' };
+    const savedData = localStorage.getItem(STATE_KEY);
+    if (savedData) {
+        try {
+            const parsed = JSON.parse(savedData);
+            state.elements = parsed.elements || [];
+            state.missions = parsed.missions || JSON.parse(JSON.stringify(initialMissions));
+            state.pageSettings = parsed.pageSettings || { backgroundColor: '#ffffff', backgroundImage: '', backgroundSize: 'cover' };
+        } catch (e) {
+            state.elements = [];
+            state.missions = JSON.parse(JSON.stringify(initialMissions));
+        }
+    } else {
+        state.elements = [];
+        state.missions = JSON.parse(JSON.stringify(initialMissions));
+    }
     
-    // Zera o histórico de Desfazer/Refazer
     history = [];
     historyIndex = -1;
-    
     pushToHistory(); 
     renderAll();
 }
 
 function saveState() {
-    // Removemos o localStorage.setItem. Agora apenas atualiza a barra de progresso das missões
     updateProgress();
+    // Tenta fazer o auto-save. Se a imagem for muito grande e estourar o limite de 5MB do navegador, ele não trava o site.
+    try {
+        localStorage.setItem(STATE_KEY, JSON.stringify({
+            elements: state.elements,
+            missions: state.missions,
+            pageSettings: state.pageSettings
+        }));
+    } catch (e) {
+        console.warn("Memória local cheia. O Auto-Save foi pausado, mas o site continua a funcionar.");
+    }
 }
 
 // --- 3. GAMIFICAÇÃO ---
@@ -218,15 +236,20 @@ function getElementHTMLContent(el, isExport = false) {
                 html = `<img src="${el.src}" alt="${el.alt || 'Imagem'}"${styleAttr} />`; 
             }
             break;
+        
         case 'button': 
-            // O botão solto agora atua como uma tag <a> disfarçada de botão
+            const isRealBtnLink = el.href && el.href !== '#';
+            const btnTarget = (isRealBtnLink && isExport) ? ' target="_blank"' : '';
             const btnHref = isExport ? ` href="${el.href || '#'}"` : ` href="#" onclick="event.preventDefault()"`;
-            html = `<a${btnHref} target="_blank"${styleAttr}>${el.content}</a>`; 
+            html = `<a${btnHref}${btnTarget}${styleAttr}>${el.content}</a>`; 
             break;
+        
         case 'link': 
             const hrefAttr = isExport ? ` href="${el.href || '#'}"` : ` href="#" onclick="event.preventDefault()"`;
-            html = `<a${hrefAttr} target="_blank"${styleAttr}>${el.content}</a>`; 
+            const linkTarget = isExport ? ' target="_blank"' : '';
+            html = `<a${hrefAttr}${linkTarget}${styleAttr}>${el.content}</a>`; 
             break;
+    
         case 'list':
             html = `<ul${styleAttr}>\n`;
             (el.content || '').split('\n').forEach(item => {
@@ -234,22 +257,22 @@ function getElementHTMLContent(el, isExport = false) {
             });
             html += `</ul>`;
             break;
+        
         case 'card': 
             let cImg = el.cardImage ? `<img src="${el.cardImage}" style="width: 100%; border-radius: 8px; margin-bottom: 15px; object-fit: cover; max-height: 200px;">` : '';
-            // Trocámos as cores fixas pelas variáveis dinâmicas do bloco
             let cTit = el.cardTitle ? `<h3 style="font-size: 1.25rem; font-weight: bold; color: ${el.cardTitleColor || '#1e293b'}; margin-bottom: 4px; word-break: break-word;">${el.cardTitle}</h3>` : '';
             let cSub = el.cardSubtitle ? `<h4 style="font-size: 0.9rem; color: ${el.cardSubtitleColor || '#64748b'}; margin-bottom: 12px; word-break: break-word;">${el.cardSubtitle}</h4>` : '';
             let cTxt = el.content ? `<p style="font-size: 1rem; color: ${el.cardTextColor || '#475569'}; margin-bottom: 16px; word-break: break-word;">${el.content}</p>` : '';
-            let cBtn = el.cardButton ? `<a href="${el.cardButtonLink || '#'}" target="_blank" style="display: inline-block; padding: 8px 16px; background-color: #4f46e5; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 0.9rem;">${el.cardButton}</a>` : '';
+
+            const isRealCardLink = el.cardButtonLink && el.cardButtonLink !== '#';
+            const cardTarget = (isRealCardLink && isExport) ? ' target="_blank"' : '';
+            const cBtnHref = isExport ? (el.cardButtonLink || '#') : '#';
+            const cBtnClick = !isExport ? ' onclick="event.preventDefault()"' : '';
+            
+            let cBtn = el.cardButton ? `<a href="${cBtnHref}"${cardTarget}${cBtnClick} style="display: inline-block; padding: 8px 16px; background-color: #4f46e5; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 0.9rem;">${el.cardButton}</a>` : '';
             
             let cardStyle = styleAttr.replace('style="', 'style="height: 100%; overflow: hidden; display: flex; flex-direction: column; ');
-            html = `<div${cardStyle}>
-                ${cImg}
-                ${cTit}
-                ${cSub}
-                ${cTxt}
-                <div style="margin-top: auto;">${cBtn}</div>
-            </div>`; 
+            html = `<div${cardStyle}>\n                ${cImg}\n                ${cTit}\n                ${cSub}\n                ${cTxt}\n                <div style="margin-top: auto;">${cBtn}</div>\n            </div>`; 
             break;
         case 'separator': html = `<hr${styleAttr} />`; break;
         case 'video': 
@@ -774,10 +797,11 @@ const actions = {
         document.getElementById('code-modal').showModal();
     },
 
-    clearSite() {
+   clearSite() {
         if(confirm("Tem certeza que deseja apagar tudo e começar uma nova página em branco?")) {
             state.elements = [];
             state.pageSettings = { backgroundColor: '#ffffff', backgroundImage: '', backgroundSize: 'cover' };
+            localStorage.removeItem(STATE_KEY); // Limpa o Auto-save
             pushToHistory();
             renderAll();
         }
@@ -874,13 +898,21 @@ const actions = {
     },
 
     exportSite() {
+        // NOVO: Pergunta o nome da página antes de salvar
+        let fileName = prompt("Dê um nome para esta página:", "index");
+        if (!fileName) return; // Cancela se o aluno fechar a janela
+        
+        // Remove espaços e garante que termina em .html
+        fileName = fileName.trim().replace(/\s+/g, '-').toLowerCase();
+        if (!fileName.endsWith('.html')) fileName += '.html';
+
         const fullHTML = htmlGenerator.generateFullDocument(state.elements, true);
         const blob = new Blob([fullHTML], { type: 'text/html' });
         const url = URL.createObjectURL(blob);
         
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'SiteCanvas.html';
+        a.download = fileName; // Usa o nome escolhido pelo aluno
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
