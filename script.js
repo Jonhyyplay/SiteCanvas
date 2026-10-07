@@ -686,7 +686,7 @@ const htmlGenerator = {
         if (state.pageSettings.backgroundImage) {
             bgStyle += ` background-image: url('${state.pageSettings.backgroundImage}'); background-size: ${state.pageSettings.backgroundSize}; background-position: center; background-attachment: fixed;`;
         }
-        return `body {\n    font-family: system-ui, -apple-system, sans-serif;\n    line-height: 1.5;\n    margin: 0;\n    padding: 0;\n    ${bgStyle}\n}\n\n.container {\n    width: 100%;\n    max-width: 1200px;\n    margin: 0 auto;\n    padding: 40px 20px;\n    display: flex;\n    flex-wrap: wrap;\n    align-content: flex-start;\n    align-items: flex-start;\n}\n\nimg {\n    max-width: 100%;\n    height: auto;\n}`;
+        return `body {\n    font-family: system-ui, -apple-system, sans-serif;\n    line-height: 1.5;\n    margin: 0;\n    padding: 40px 20px;\n    background-color: #f1f5f9;\n}\n\n.container {\n    width: 100%;\n    max-width: 1200px;\n    margin: 0 auto;\n    ${bgStyle}\n    padding: 40px;\n    border-radius: 16px;\n    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);\n    display: flex;\n    flex-wrap: wrap;\n    align-content: flex-start;\n    align-items: flex-start;\n    overflow: hidden;\n}\n\nimg {\n    max-width: 100%;\n    height: auto;\n}`;
     },
 
     generateFullDocument(elements, addComments = false) {
@@ -722,11 +722,15 @@ const htmlGenerator = {
             width: 100%; 
             max-width: 1200px; 
             margin: 0 auto; 
-            padding: 40px 20px; 
+            ${bgStyle}
+            padding: 40px; 
+            border-radius: 16px; 
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); 
             display: flex;
             flex-wrap: wrap;
             align-content: flex-start;
             align-items: flex-start;
+            overflow: hidden;
         }
         img { max-width: 100%; height: auto; }
     </style>
@@ -827,8 +831,8 @@ const actions = {
         const previewContainer = document.getElementById('preview-content');
         
         previewContainer.innerHTML = `
-            <div style="min-height: 100vh; padding: 0; ${bgStyle}">
-                <div style="width: 100%; max-width: 1200px; margin: 0 auto; padding: 40px 20px; display: flex; flex-wrap: wrap; align-content: flex-start; align-items: flex-start;">
+            <div style="min-height: 100vh; padding: 40px 20px; background-color: #f1f5f9;">
+                <div style="width: 100%; max-width: 1200px; margin: 0 auto; ${bgStyle} padding: 40px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); display: flex; flex-wrap: wrap; align-content: flex-start; align-items: flex-start; overflow: hidden;">
                     ${rawHTML}
                 </div>
             </div>
