@@ -220,8 +220,13 @@ function getElementHTMLContent(el, isExport = false) {
             else if (el.styles.textAlign === 'right') titleStyle = titleStyle.replace(';', '; justify-content: flex-end;');
             html = `<h1${titleStyle}>${imgHTML}<span style="word-break: break-word;">${el.content}</span></h1>`; 
             break;
-        case 'text': html = `<p${styleAttr} style="word-break: break-word;">${el.content}</p>`; break;
-        case 'image': 
+            
+            case 'text': 
+            let textStyle = styleAttr.replace('style="', 'style="word-break: break-word; white-space: pre-wrap; ');
+            html = `<p${textStyle}>${el.content}</p>`; 
+            break;        
+            
+            case 'image': 
             if (!el.src || el.src.trim() === '') {
                 if (isExport) return ''; // Impede que o placeholder vaze para o site final
                 // Se não houver link, desenha a caixa pontilhada de placeholder
@@ -261,7 +266,7 @@ function getElementHTMLContent(el, isExport = false) {
             let cImg = el.cardImage ? `<img src="${el.cardImage}" style="width: 100%; height: auto; border-radius: 8px; margin-bottom: 15px; display: block;">` : '';
             let cTit = el.cardTitle ? `<h3 style="font-size: 1.25em; font-weight: bold; color: ${el.cardTitleColor || '#1e293b'}; margin-bottom: 4px; word-break: break-word;">${el.cardTitle}</h3>` : '';
             let cSub = el.cardSubtitle ? `<h4 style="font-size: 0.9em; color: ${el.cardSubtitleColor || '#64748b'}; margin-bottom: 12px; word-break: break-word;">${el.cardSubtitle}</h4>` : '';
-            let cTxt = el.content ? `<p style="font-size: 1em; color: ${el.cardTextColor || '#475569'}; margin-bottom: 16px; word-break: break-word;">${el.content}</p>` : '';
+            let cTxt = el.content ? `<p style="font-size: 1em; color: ${el.cardTextColor || '#475569'}; margin-bottom: 16px; word-break: break-word; white-space: pre-wrap;">${el.content}</p>` : '';
 
             const isRealCardLink = el.cardButtonLink && el.cardButtonLink !== '#';
             const cardTarget = (isRealCardLink && isExport) ? ' target="_blank"' : '';
