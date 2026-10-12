@@ -1,87 +1,132 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap');
-        
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap");
+
 body {
-    font-family: 'Inter', sans-serif;
-    background-color: #f8fafc;
-    overflow: hidden; 
+  font-family: "Inter", sans-serif;
+  background-color: #f8fafc;
+  overflow: hidden;
 }
 
 .canvas-element-wrapper {
-    position: relative;
-    border: 2px solid transparent;
-    border-radius: 8px;
-    transition: all 0.2s ease;
-    margin-bottom: 2px;
+  position: relative;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  margin-bottom: 2px;
 }
 
 .canvas-element-wrapper:hover {
-    border-color: #93c5fd; 
+  border-color: #93c5fd;
 }
 
 .canvas-element-wrapper.selected {
-    border-color: #3b82f6 !important; 
-    box-shadow: 0 0 0 4px #dbeafe; 
-    z-index: 10;
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 4px #dbeafe;
+  z-index: 10;
 }
 
 .element-controls {
-    display: none;
-    position: absolute;
-    top: -16px;
-    right: -16px;
-    background: #3b82f6;
-    border-radius: 6px;
-    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-    overflow: hidden;
-    z-index: 20;
+  display: none;
+  position: absolute;
+  top: -16px;
+  right: -16px;
+  background: #3b82f6;
+  border-radius: 6px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  z-index: 20;
 }
 
 .canvas-element-wrapper.selected .element-controls {
-    display: flex;
+  display: flex;
 }
 
 .control-btn {
-    padding: 6px;
-    color: white;
-    cursor: pointer;
-    transition: background 0.2s;
+  padding: 6px;
+  color: white;
+  cursor: pointer;
+  transition: background 0.2s;
 }
 
-.control-btn:hover { background: #2563eb; }
-.control-btn.delete:hover { background: #ef4444; }
-.control-btn i { width: 14px; height: 14px; display: block; }
+.control-btn:hover {
+  background: #2563eb;
+}
+.control-btn.delete:hover {
+  background: #ef4444;
+}
+.control-btn i {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
 
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
 
 @keyframes pop {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.1); box-shadow: 0 0 20px rgba(74, 222, 128, 0.5); }
-    100% { transform: scale(1); }
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+    box-shadow: 0 0 20px rgba(74, 222, 128, 0.5);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 @keyframes slideIn {
-    from { transform: translateX(120%); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
+  from {
+    transform: translateX(120%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
 @keyframes slideOut {
-    from { transform: translateX(0); opacity: 1; }
-    to { transform: translateX(120%); opacity: 0; }
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(120%);
+    opacity: 0;
+  }
 }
 @keyframes progress {
-    from { width: 100%; }
-    to { width: 0%; }
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
 }
-.toast-enter { animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-.toast-progress { animation: progress 3s linear forwards; }
+.toast-enter {
+  animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.toast-progress {
+  animation: progress 3s linear forwards;
+}
 .mission-complete-anim {
-    animation: pop 0.5s ease-out;
-    border-color: #4ade80 !important;
-    background-color: #f0fdf4 !important;
+  animation: pop 0.5s ease-out;
+  border-color: #4ade80 !important;
+  background-color: #f0fdf4 !important;
 }
 
 dialog::backdrop {
-    background: rgba(15, 23, 42, 0.8);
-    backdrop-filter: blur(4px);
+  background: rgba(15, 23, 42, 0.8);
+  backdrop-filter: blur(4px);
 }
