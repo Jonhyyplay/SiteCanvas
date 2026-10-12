@@ -688,7 +688,7 @@ function renderPropertiesPanel() {
 
                 <div>
                     <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Preenchimento da Imagem</label>
-                    <select class="w-full p-2 border border-slate-300 rounded text-sm outline-none" onchange="actions.updatePageSettings('backgroundSize', this.value)">
+                    <select aria-label="Definir preenchimento da imagem" class="w-full p-2 border border-slate-300 rounded text-sm outline-none" onchange="actions.updatePageSettings('backgroundSize', this.value)">
                         <option value="cover" ${state.pageSettings.backgroundSize === "cover" ? "selected" : ""}>Preencher Tela Inteira</option>
                         <option value="contain" ${state.pageSettings.backgroundSize === "contain" ? "selected" : ""}>Ajustar ao Tamanho</option>
                         <option value="auto" ${state.pageSettings.backgroundSize === "auto" ? "selected" : ""}>Tamanho Original</option>
@@ -767,8 +767,7 @@ function renderPropertiesPanel() {
             <div class="flex gap-2 mb-3">
                 <input type="text" class="w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:border-indigo-500 outline-none" value="${el.cardButton || ""}" placeholder="Deixe vazio para ocultar" oninput="updateElement('${el.id}', 'cardButton', this.value)">
                 <input type="color" class="w-10 h-10 p-0.5 border border-slate-300 rounded-lg cursor-pointer flex-shrink-0" value="${el.cardButtonTextColor || "#ffffff"}" title="Cor da Letra" oninput="updateElement('${el.id}', 'cardButtonTextColor', this.value)">
-                <input type="color" class="w-10 h-10 p-0.5 border border-slate-300 rounded-lg cursor-pointer flex-shrink-0" value="${el.cardButtonBgColor || "#4f46e5"}" title="Cor de Fundo" oninput="updateElement('${el.id}', 'cardButtonBgColor', this.value)">
-            </div>
+                <input type="color" aria-label="Escolher Cor de Fundo" class="w-full h-10 cursor-pointer rounded border border-slate-200" value="${state.pageSettings.backgroundColor}" oninput="actions.updatePageSettings('backgroundColor', this.value, true)">
             
             <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Link do Botão</label>
             <input type="text" class="w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:border-indigo-500 outline-none" value="${el.cardButtonLink || ""}" oninput="updateElement('${el.id}', 'cardButtonLink', this.value)">
@@ -786,7 +785,7 @@ function renderPropertiesPanel() {
     contentSection.innerHTML = `
             <div class="p-3 bg-indigo-50 border border-indigo-100 rounded-xl relative mb-4">
                 <label class="block text-xs font-bold text-indigo-700 uppercase mb-2"><i data-feather="upload-cloud" class="w-3 h-3 inline"></i> Fazer Upload de Imagem</label>
-                <input type="file" accept="image/png, image/jpeg, image/jpg" class="text-xs w-full text-slate-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 cursor-pointer" onchange="handleImageUpload(this, (base64) => updateElement('${el.id}', 'src', base64))">
+                <input type="file" aria-label="Fazer upload de imagem de fundo" accept="image/png, image/jpeg, image/jpg" class="text-xs w-full text-slate-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 cursor-pointer" onchange="handleImageUpload(this, (base64) => updateElement('${el.id}', 'src', base64))">
                 ${el.src ? `<button onclick="updateElement('${el.id}', 'src', '')" class="w-full mt-3 py-1.5 bg-white border border-red-200 hover:bg-red-50 text-red-600 rounded-md text-xs font-bold transition flex items-center justify-center gap-1"><i data-feather="trash-2" class="w-3 h-3 inline"></i> Remover Imagem</button>` : ""}
             </div>
 
