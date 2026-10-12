@@ -1,3 +1,4 @@
+/* jshint esversion: 11, browser: true, unused: false, undef: false */
 // --- 1. DADOS E ESTADO INICIAL ---
 
 const STATE_KEY = "SiteCanvas_v2"; // Mudamos para v2 para forçar a limpeza da memória corrompida
@@ -189,8 +190,8 @@ let state = {
   },
 };
 
-let history = [];
-let historyIndex = -1;
+let appHistory = [];
+let appHistoryIndex = -1;
 
 // --- ESCUDO ANTI-QUEDA DE INTERNET ---
 function replaceIcons() {
@@ -200,15 +201,15 @@ function replaceIcons() {
 }
 
 function pushToHistory() {
-  history = history.slice(0, historyIndex + 1);
-  history.push(
+  appHistory = appHistory.slice(0, appHistoryIndex + 1);
+  appHistory.push(
     JSON.stringify({
       elements: state.elements,
       pageSettings: state.pageSettings,
     }),
   );
-  if (history.length > 30) history.shift();
-  historyIndex = history.length - 1;
+  if (appHistory.length > 30) appHistory.shift();
+  appHistoryIndex = appHistory.length - 1;
   saveState();
 }
 
@@ -240,8 +241,8 @@ function loadState() {
     state.missions = JSON.parse(JSON.stringify(initialMissions));
   }
 
-  history = [];
-  historyIndex = -1;
+  appHistory = [];
+  appHistoryIndex = -1;
   pushToHistory();
   renderAll();
 }
@@ -1203,9 +1204,9 @@ const actions = {
   },
 
   undo() {
-    if (historyIndex > 0) {
-      historyIndex--;
-      const pastState = JSON.parse(history[historyIndex]);
+    if (appHistoryIndex > 0) {
+      appHistoryIndex--;
+      const pastState = JSON.parse(appHistory[appHistoryIndex]);
       state.elements = pastState.elements;
       state.pageSettings = pastState.pageSettings || {
         backgroundColor: "#ffffff",
@@ -1218,9 +1219,9 @@ const actions = {
   },
 
   redo() {
-    if (historyIndex < history.length - 1) {
-      historyIndex++;
-      const futureState = JSON.parse(history[historyIndex]);
+    if (appHistoryIndex < appHistory.length - 1) {
+      appHistoryIndex++;
+      const futureState = JSON.parse(appHistory[appHistoryIndex]);
       state.elements = futureState.elements;
       state.pageSettings = futureState.pageSettings || {
         backgroundColor: "#ffffff",
@@ -1329,7 +1330,7 @@ document.addEventListener("keydown", (e) => {
 
 // --- PROTEÇÃO CONTRA SAÍDA ACIDENTAL ---
 window.addEventListener("beforeunload", function (e) {
-  if (state.elements.length > 0 || historyIndex > 0) {
+  if (state.elements.length > 0 || appHistoryIndex > 0) {
     e.preventDefault();
     return ""; // Substituto moderno que ativa o alerta nativo
   }
