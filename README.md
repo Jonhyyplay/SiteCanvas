@@ -6,14 +6,6 @@
 ![Styling](https://img.shields.io/badge/Styling-CSS3_&_Tailwind-blue)
 ![Markup](https://img.shields.io/badge/Markup-HTML5-orange)
 
----
-
-## 🎬 Demonstração do Projeto
-
-*(Adicione aqui o seu GIF animado ou link de vídeo mostrando o processo de arrastar um bloco e visualizar a interface)*
-
----
-
 ## 📋 O Problema e o Impacto
 
 O SiteCanvas foi inicialmente concebido e aplicado como a ferramenta central em oficinas de extensão universitária voltadas para alunos do Ensino Médio. 
