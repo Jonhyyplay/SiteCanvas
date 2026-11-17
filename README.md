@@ -1,4 +1,4 @@
-# 🎨 SiteCanvas - Construtor Low-Code Interativo
+# Construtor Low-Code Interativo
 
 > Uma aplicação web nativa e leve (Low-Code) que permite a construção de interfaces através de blocos visuais, manipulando o DOM e gerando código estruturado em tempo real sem a dependência de frameworks.
 
