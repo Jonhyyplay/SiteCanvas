@@ -1,9 +1,9 @@
 /* jshint esversion: 11, browser: true, unused: false, undef: false */
+
 // --- 1. DADOS E ESTADO INICIAL ---
 
-const STATE_KEY = "SiteCanvas_v2"; // Mudamos para v2 para forçar a limpeza da memória corrompida
+const STATE_KEY = "SiteCanvas_v2";
 
-// Definição dos blocos
 const blockTypes = [
   {
     type: "title",
@@ -158,8 +158,6 @@ const blockTypes = [
   },
 ];
 
-const defaultElements = [];
-
 const initialMissions = [
   { id: "m1", text: "Editar um título ou texto", completed: false },
   { id: "m2", text: "Mudar a cor de algum elemento", completed: false },
@@ -179,44 +177,58 @@ const initialMissions = [
   { id: "m8", text: "Visualizar o site pronto", completed: false },
 ];
 
+const DEFAULT_PAGE_SETTINGS = {
+  backgroundColor: "#ffffff",
+  backgroundImage: "",
+  backgroundSize: "cover",
+};
+
 let state = {
   elements: [],
   selectedId: null,
   missions: [],
-  pageSettings: {
-    backgroundColor: "#ffffff",
-    backgroundImage: "",
-    backgroundSize: "cover",
-  },
+  pageSettings: { ...DEFAULT_PAGE_SETTINGS },
 };
 
 let appHistory = [];
 let appHistoryIndex = -1;
+let historyDebounceTimer = null;
 
-// --- ESCUDO ANTI-QUEDA DE INTERNET ---
+// --- 2. FUNÇÕES BASE E PERSISTÊNCIA ---
+
 function replaceIcons() {
-  if (typeof feather !== "undefined") {
-    feather.replace();
-  }
+  if (typeof feather !== "undefined") feather.replace();
+}
+
+function generateId() {
+  return "el_" + Math.random().toString(36).slice(2, 11);
+}
+
+function cloneData(data) {
+  return JSON.parse(JSON.stringify(data));
 }
 
 function pushToHistory() {
+  if (historyDebounceTimer) {
+    clearTimeout(historyDebounceTimer);
+    historyDebounceTimer = null;
+  }
+  const snapshot = JSON.stringify({
+    elements: state.elements,
+    pageSettings: state.pageSettings,
+  });
+  if (appHistory[appHistoryIndex] === snapshot) return;
+
   appHistory = appHistory.slice(0, appHistoryIndex + 1);
-  appHistory.push(
-    JSON.stringify({
-      elements: state.elements,
-      pageSettings: state.pageSettings,
-    }),
-  );
+  appHistory.push(snapshot);
   if (appHistory.length > 30) appHistory.shift();
   appHistoryIndex = appHistory.length - 1;
   saveState();
 }
 
-// --- 2. FUNÇÕES BASE ---
-
-function generateId() {
-  return "el_" + Math.random().toString(36).substr(2, 9);
+function scheduleHistoryPush() {
+  if (historyDebounceTimer) clearTimeout(historyDebounceTimer);
+  historyDebounceTimer = setTimeout(pushToHistory, 400);
 }
 
 function loadState() {
@@ -225,20 +237,20 @@ function loadState() {
     try {
       const parsed = JSON.parse(savedData);
       state.elements = parsed.elements || [];
-      state.missions =
-        parsed.missions || JSON.parse(JSON.stringify(initialMissions));
-      state.pageSettings = parsed.pageSettings || {
-        backgroundColor: "#ffffff",
-        backgroundImage: "",
-        backgroundSize: "cover",
+      state.missions = parsed.missions || cloneData(initialMissions);
+      state.pageSettings = {
+        ...DEFAULT_PAGE_SETTINGS,
+        ...(parsed.pageSettings || {}),
       };
     } catch (e) {
       state.elements = [];
-      state.missions = JSON.parse(JSON.stringify(initialMissions));
+      state.missions = cloneData(initialMissions);
+      state.pageSettings = { ...DEFAULT_PAGE_SETTINGS };
     }
   } else {
     state.elements = [];
-    state.missions = JSON.parse(JSON.stringify(initialMissions));
+    state.missions = cloneData(initialMissions);
+    state.pageSettings = { ...DEFAULT_PAGE_SETTINGS };
   }
 
   appHistory = [];
@@ -249,7 +261,6 @@ function loadState() {
 
 function saveState() {
   updateProgress();
-  // Tenta fazer o auto-save. Se a imagem for muito grande e estourar o limite de 5MB do navegador, ele não trava o site.
   try {
     localStorage.setItem(
       STATE_KEY,
@@ -266,9 +277,57 @@ function saveState() {
   }
 }
 
-// --- 3. GAMIFICAÇÃO ---
+function handleImageUpload(inputElement, callback) {
+  const file = inputElement.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => callback(e.target.result);
+  reader.readAsDataURL(file);
+}
 
-// --- SISTEMA DE NOTIFICAÇÕES (TOAST) ---
+function extractYouTubeId(url) {
+  if (!url) return null;
+  const match = url.match(
+    /(?:youtube(?:-nocookie)?\.com\/(?:watch\?v=|embed\/|shorts\/|v\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/,
+  );
+  return match ? match[1] : null;
+}
+
+function formatVideoUrl(rawInput) {
+  let url = (rawInput || "").trim();
+  const iframeSrcMatch = url.match(/<iframe[^>]+src=["']([^"']+)["']/i);
+  if (iframeSrcMatch) url = iframeSrcMatch[1];
+
+  const ytId = extractYouTubeId(url);
+  if (ytId) return `https://www.youtube.com/embed/${ytId}`;
+  return url;
+}
+
+function isDirectVideoFile(url) {
+  return /\.(mp4|webm|ogg)(\?.*)?$/i.test(url) || url.startsWith("data:video/");
+}
+
+function buildYouTubeLocalCard(ytId, styleAttr, isInteractive = true) {
+  const clickAttr = isInteractive ? "" : ' onclick="event.preventDefault()"';
+  const cardStyle = styleAttr.replace(
+    'style="',
+    "style=\"position: relative; display: flex; align-items: center; justify-content: center; background: #0f172a url('https://i.ytimg.com/vi/" +
+      ytId +
+      "/hqdefault.jpg') center/cover no-repeat; text-decoration: none; overflow: hidden; min-height: 250px; ",
+  );
+  return `<a href="https://www.youtube.com/watch?v=${ytId}" target="_blank" rel="noopener noreferrer"${clickAttr}${cardStyle}>
+    <div style="position: absolute; inset: 0; background: rgba(0,0,0,0.35);"></div>
+    <div style="position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 10px;">
+      <div style="width: 68px; height: 48px; background: #ff0000; border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(0,0,0,0.4);">
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="white"><polygon points="9.5 7.5 16.5 12 9.5 16.5 9.5 7.5"></polygon></svg>
+      </div>
+      <span style="background: rgba(15,23,42,0.85); color: #fff; font-family: sans-serif; font-size: 0.8rem; font-weight: 600; padding: 6px 14px; border-radius: 99px; border: 1px solid rgba(255,255,255,0.2);">Assistir no YouTube (Modo Arquivo Local)</span>
+    </div>
+  </a>`;
+}
+
+// --- 3. GAMIFICAÇÃO E NOTIFICAÇÕES ---
+
 function showToast(missionText) {
   let container = document.getElementById("toast-container");
   if (!container) {
@@ -283,22 +342,20 @@ function showToast(missionText) {
   toast.className =
     "bg-slate-900 text-white p-4 rounded-xl shadow-2xl min-w-[300px] border border-slate-700 relative overflow-hidden toast-enter";
   toast.innerHTML = `
-        <div class="flex items-center gap-3 mb-2">
-            <div class="bg-emerald-500/20 p-1.5 rounded-full"><i data-feather="award" class="w-5 h-5 text-emerald-400"></i></div>
-            <div>
-                <h4 class="text-sm font-bold text-slate-100">Missão Concluída!</h4>
-                <p class="text-xs text-slate-400">${missionText}</p>
-            </div>
-        </div>
-        <div class="absolute bottom-0 left-0 h-1 bg-slate-700 w-full">
-            <div class="h-full bg-emerald-400 toast-progress"></div>
-        </div>
-    `;
+    <div class="flex items-center gap-3 mb-2">
+      <div class="bg-emerald-500/20 p-1.5 rounded-full"><i data-feather="award" class="w-5 h-5 text-emerald-400"></i></div>
+      <div>
+        <h4 class="text-sm font-bold text-slate-100">Missão Concluída!</h4>
+        <p class="text-xs text-slate-400">${missionText}</p>
+      </div>
+    </div>
+    <div class="absolute bottom-0 left-0 h-1 bg-slate-700 w-full">
+      <div class="h-full bg-emerald-400 toast-progress"></div>
+    </div>`;
 
   container.appendChild(toast);
   replaceIcons();
 
-  // Inicia a saída após 3 segundos (tempo da barra correr)
   setTimeout(() => {
     toast.style.animation = "slideOut 0.3s ease-in forwards";
     setTimeout(() => toast.remove(), 300);
@@ -324,13 +381,31 @@ function checkMission(missionId) {
 
 function updateProgress() {
   const total = state.missions.length;
+  if (!total) return;
   const completed = state.missions.filter((m) => m.completed).length;
   const percentage = Math.round((completed / total) * 100);
   document.getElementById("progress-text").innerText = `${percentage}%`;
   document.getElementById("progress-bar").style.width = `${percentage}%`;
 }
 
-// --- 4. RENDERIZAÇÃO E MANIPULAÇÃO DO DOM ---
+// --- 4. RENDERIZAÇÃO DO CANVAS E ELEMENTOS ---
+
+function addBlock(type, targetIndex = state.elements.length) {
+  const block = blockTypes.find((b) => b.type === type);
+  if (!block) return;
+
+  const newEl = {
+    id: generateId(),
+    type: block.type,
+    ...cloneData(block.defaultProps),
+  };
+  state.elements.splice(targetIndex, 0, newEl);
+  state.selectedId = newEl.id;
+
+  if (block.type === "image") checkMission("m3");
+  pushToHistory();
+  renderAll();
+}
 
 function renderComponentsGrid() {
   const grid = document.getElementById("components-grid");
@@ -342,20 +417,7 @@ function renderComponentsGrid() {
     btn.dataset.type = block.type;
     btn.innerHTML = `<i data-feather="${block.icon}" class="w-6 h-6 mb-2"></i><span class="text-xs font-semibold">${block.label}</span>`;
     btn.onclick = () => {
-      const newEl = {
-        id: generateId(),
-        type: block.type,
-        ...JSON.parse(JSON.stringify(block.defaultProps)),
-      };
-      state.elements.push(newEl);
-      state.selectedId = newEl.id;
-
-      if (block.type === "image") checkMission("m3");
-      if (block.type === "list") checkMission("m4");
-      if (block.type === "link") checkMission("m5");
-
-      pushToHistory();
-      renderAll();
+      addBlock(block.type);
       const mainArea = document.getElementById("main-area");
       mainArea.scrollTop = mainArea.scrollHeight;
     };
@@ -371,12 +433,10 @@ function renderMissions() {
     const li = document.createElement("li");
     li.id = `mission-${mission.id}`;
     const isDone = mission.completed;
-    const baseClasses =
-      "p-3 rounded-xl flex items-start gap-3 border transition-all duration-300 relative overflow-hidden";
     const stateClasses = isDone
       ? "bg-emerald-50 border-emerald-200 text-emerald-800"
       : "bg-white border-slate-200 text-slate-600";
-    li.className = `${baseClasses} ${stateClasses}`;
+    li.className = `p-3 rounded-xl flex items-start gap-3 border transition-all duration-300 relative overflow-hidden ${stateClasses}`;
     const iconHTML = isDone
       ? `<i data-feather="check-circle" class="w-5 h-5 text-emerald-500 mt-0.5 shrink-0"></i>`
       : `<div class="w-5 h-5 border-2 border-slate-300 rounded-full mt-0.5 shrink-0"></div>`;
@@ -387,22 +447,18 @@ function renderMissions() {
 }
 
 function getElementHTMLContent(el, isExport = false) {
-  // 1. Criamos uma cópia dos estilos para não apagar o original
   const innerStyles = { ...el.styles };
-  // 2. Removemos a largura do conteúdo interno (porque ela agora pertence à borda azul externa)
   delete innerStyles.width;
 
   const styleStr = Object.entries(innerStyles)
     .map(([k, v]) => `${k.replace(/([A-Z])/g, "-$1").toLowerCase()}: ${v};`)
     .join(" ");
 
-  // 3. Forçamos o conteúdo a esticar para 100% do tracejado azul
   const styleAttr = ` style="box-sizing: border-box; width: 100%; max-width: 100%; ${styleStr}"`;
 
-  let html = "";
   switch (el.type) {
-    case "title":
-      let imgHTML = el.imageUrl
+    case "title": {
+      const imgHTML = el.imageUrl
         ? `<img src="${el.imageUrl}" style="height: 1.2em; border-radius: 8px; margin-right: 10px;">`
         : "";
       let titleStyle = styleAttr;
@@ -410,72 +466,68 @@ function getElementHTMLContent(el, isExport = false) {
         titleStyle = titleStyle.replace(";", "; justify-content: center;");
       else if (el.styles.textAlign === "right")
         titleStyle = titleStyle.replace(";", "; justify-content: flex-end;");
-      html = `<h1${titleStyle}>${imgHTML}<span style="word-break: break-word;">${el.content}</span></h1>`;
-      break;
+      return `<h1${titleStyle}>${imgHTML}<span style="word-break: break-word;">${el.content}</span></h1>`;
+    }
 
-    case "text":
-      let textStyle = styleAttr.replace(
+    case "text": {
+      const textStyle = styleAttr.replace(
         'style="',
         'style="word-break: break-word; white-space: pre-wrap; ',
       );
-      html = `<p${textStyle}>${el.content}</p>`;
-      break;
+      return `<p${textStyle}>${el.content}</p>`;
+    }
 
-    case "image":
+    case "image": {
       if (!el.src || el.src.trim() === "") {
-        if (isExport) return ""; // Impede que o placeholder vaze para o site final
-        // Se não houver link, desenha a caixa pontilhada de placeholder
-        let phImgStyle = styleAttr.replace(
+        if (isExport) return "";
+        const phImgStyle = styleAttr.replace(
           'style="',
           'style="background-color: #f1f5f9; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 2px dashed #cbd5e1; min-height: 250px; ',
         );
-        html = `<div${phImgStyle}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 8px; color: #94a3b8;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-                    <span style="color: #64748b; font-weight: 600; font-family: sans-serif; font-size: 0.9rem;">Adicione uma imagem no painel</span>
-                </div>`;
-      } else {
-        // Se houver link (ou base64), exibe a imagem real
-        html = `<img src="${el.src}" alt="${el.alt || "Imagem"}"${styleAttr} />`;
+        return `<div${phImgStyle}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 8px; color: #94a3b8;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+          <span style="color: #64748b; font-weight: 600; font-family: sans-serif; font-size: 0.9rem;">Adicione uma imagem no painel</span>
+        </div>`;
       }
-      break;
+      return `<img src="${el.src}" alt="${el.alt || "Imagem"}"${styleAttr} />`;
+    }
 
     case "button":
-      const isRealBtnLink = el.href && el.href !== "#";
-      const btnTarget = isRealBtnLink && isExport ? ' target="_blank"' : "";
-      const btnHref = isExport
+    case "link": {
+      const isRealLink = el.href && el.href !== "#";
+      const target =
+        (el.type === "link" || isRealLink) && isExport
+          ? ' target="_blank"'
+          : "";
+      const href = isExport
         ? ` href="${el.href || "#"}"`
         : ` href="#" onclick="event.preventDefault()"`;
-      html = `<a${btnHref}${btnTarget}${styleAttr}>${el.content}</a>`;
-      break;
+      return `<a${href}${target}${styleAttr}>${el.content}</a>`;
+    }
 
-    case "link":
-      const hrefAttr = isExport
-        ? ` href="${el.href || "#"}"`
-        : ` href="#" onclick="event.preventDefault()"`;
-      const linkTarget = isExport ? ' target="_blank"' : "";
-      html = `<a${hrefAttr}${linkTarget}${styleAttr}>${el.content}</a>`;
-      break;
+    case "list": {
+      const items = (el.content || "")
+        .split("\n")
+        .filter((item) => item.trim())
+        .map(
+          (item) =>
+            `  <li style="list-style-type: disc; margin-left: 20px; word-break: break-word;">${item}</li>`,
+        )
+        .join("\n");
+      return `<ul${styleAttr}>\n${items}\n</ul>`;
+    }
 
-    case "list":
-      html = `<ul${styleAttr}>\n`;
-      (el.content || "").split("\n").forEach((item) => {
-        if (item.trim())
-          html += `  <li style="list-style-type: disc; margin-left: 20px; word-break: break-word;">${item}</li>\n`;
-      });
-      html += `</ul>`;
-      break;
-
-    case "card":
-      let cImg = el.cardImage
+    case "card": {
+      const cImg = el.cardImage
         ? `<img src="${el.cardImage}" style="width: 100%; height: auto; border-radius: 8px; margin-bottom: 15px; display: block;">`
         : "";
-      let cTit = el.cardTitle
+      const cTit = el.cardTitle
         ? `<h3 style="font-size: 1.25em; font-weight: bold; color: ${el.cardTitleColor || "#1e293b"}; margin-bottom: 4px; word-break: break-word;">${el.cardTitle}</h3>`
         : "";
-      let cSub = el.cardSubtitle
+      const cSub = el.cardSubtitle
         ? `<h4 style="font-size: 0.9em; color: ${el.cardSubtitleColor || "#64748b"}; margin-bottom: 12px; word-break: break-word;">${el.cardSubtitle}</h4>`
         : "";
-      let cTxt = el.content
+      const cTxt = el.content
         ? `<p style="font-size: 1em; color: ${el.cardTextColor || "#475569"}; margin-bottom: 16px; word-break: break-word; white-space: pre-wrap;">${el.content}</p>`
         : "";
 
@@ -484,52 +536,50 @@ function getElementHTMLContent(el, isExport = false) {
       const cBtnHref = isExport ? el.cardButtonLink || "#" : "#";
       const cBtnClick = !isExport ? ' onclick="event.preventDefault()"' : "";
 
-      let cBtn = el.cardButton
+      const cBtn = el.cardButton
         ? `<a href="${cBtnHref}"${cardTarget}${cBtnClick} style="display: inline-block; padding: 8px 16px; background-color: ${el.cardButtonBgColor || "#4f46e5"}; color: ${el.cardButtonTextColor || "#ffffff"}; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 0.9em;">${el.cardButton}</a>`
         : "";
 
-      let cardStyle = styleAttr.replace(
+      const cardStyle = styleAttr.replace(
         'style="',
         'style="height: 100%; overflow: hidden; display: flex; flex-direction: column; ',
       );
-      html = `<div${cardStyle}>\n                ${cImg}\n                ${cTit}\n                ${cSub}\n                ${cTxt}\n                <div style="margin-top: auto;">${cBtn}</div>\n            </div>`;
-      break;
+      return `<div${cardStyle}>\n  ${cImg}\n  ${cTit}\n  ${cSub}\n  ${cTxt}\n  <div style="margin-top: auto;">${cBtn}</div>\n</div>`;
+    }
+
     case "separator":
-      html = `<hr${styleAttr} />`;
-      break;
-    case "video":
+      return `<hr${styleAttr} />`;
+
+    case "video": {
       if (!el.src || el.src.trim() === "") {
-        if (isExport) return ""; // Impede que o placeholder vaze para o site final
-        // Se não houver link, desenha uma caixa pontilhada amigável
-        let phStyle = styleAttr.replace(
+        if (isExport) return "";
+        const phStyle = styleAttr.replace(
           'style="',
           'style="background-color: #f1f5f9; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 2px dashed #cbd5e1; ',
         );
-        html = `<div${phStyle}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 8px; color: #94a3b8;"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33 2.78 2.78 0 0 0 1.94 2c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.33 29 29 0 0 0-.46-5.33z"></path><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"></polygon></svg>
-                    <span style="color: #64748b; font-weight: 600; font-family: sans-serif; font-size: 0.9rem;">Adicione um link de vídeo no painel</span>
-                </div>`;
-      } else {
-        // Se houver link, embute o vídeo real
-        html = `<iframe src="${el.src}" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen${styleAttr}></iframe>`;
+        return `<div${phStyle}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 8px; color: #94a3b8;"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33 2.78 2.78 0 0 0 1.94 2c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.33 29 29 0 0 0-.46-5.33z"></path><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"></polygon></svg>
+          <span style="color: #64748b; font-weight: 600; font-family: sans-serif; font-size: 0.9rem;">Adicione um link de vídeo no painel</span>
+        </div>`;
       }
-      break;
+      if (isDirectVideoFile(el.src)) {
+        return `<video src="${el.src}" controls${styleAttr}></video>`;
+      }
+      const ytId = extractYouTubeId(el.src);
+      if (ytId && window.location.protocol === "file:" && isExport !== "code") {
+        return buildYouTubeLocalCard(ytId, styleAttr, Boolean(isExport));
+      }
+      const ytAttr = ytId ? ` data-yt-id="${ytId}"` : "";
+      return `<iframe src="${el.src}"${ytAttr} title="Player de vídeo" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen${styleAttr}></iframe>`;
+    }
+
+    default:
+      return "";
   }
-  return html;
 }
 
-function renderCanvas() {
-  const canvas = document.getElementById("canvas-content");
+function updateCanvasBackground() {
   const canvasBg = document.getElementById("canvas-bg");
-  canvas.innerHTML = "";
-
-  // Transforma a folha numa grelha flexível para os blocos ficarem lado a lado
-  canvas.style.display = "flex";
-  canvas.style.flexWrap = "wrap";
-  canvas.style.alignContent = "flex-start";
-  canvas.style.alignItems = "stretch"; // Impede que a caixa azul estique verticalmente
-
-  // Configura fundo
   canvasBg.style.backgroundColor = state.pageSettings.backgroundColor;
   if (state.pageSettings.backgroundImage) {
     canvasBg.style.backgroundImage = `url('${state.pageSettings.backgroundImage}')`;
@@ -540,39 +590,50 @@ function renderCanvas() {
   } else {
     canvasBg.style.backgroundImage = "none";
   }
+}
+
+function renderCanvas() {
+  const canvas = document.getElementById("canvas-content");
+  canvas.innerHTML = "";
+  Object.assign(canvas.style, {
+    display: "flex",
+    flexWrap: "wrap",
+    alignContent: "flex-start",
+    alignItems: "stretch",
+  });
+
+  updateCanvasBackground();
 
   if (state.elements.length === 0) {
     canvas.innerHTML = `
-<div class="pointer-events-none select-none h-full w-full flex flex-col items-center justify-center text-slate-400 mt-20 bg-white/80 p-8 rounded-xl backdrop-blur-sm shadow-[0_0_25px_rgba(0,0,0,0.15)] inline-block mx-auto text-center">
-                <i data-feather="layout" class="w-16 h-16 mb-4 opacity-40 mx-auto"></i>
-                <p class="text-lg font-bold text-slate-600">Seu site está vazio!</p>
-                <p class="text-sm mt-2">Arraste os blocos da esquerda para cá.</p>
-            </div>`;
+      <div class="empty-state-msg pointer-events-none select-none h-full w-full flex flex-col items-center justify-center text-slate-400 mt-20 bg-white/80 p-8 rounded-xl backdrop-blur-sm shadow-[0_0_25px_rgba(0,0,0,0.15)] inline-block mx-auto text-center">
+        <i data-feather="layout" class="w-16 h-16 mb-4 opacity-40 mx-auto"></i>
+        <p class="text-lg font-bold text-slate-600">Seu site está vazio!</p>
+        <p class="text-sm mt-2">Arraste os blocos da esquerda para cá.</p>
+      </div>`;
     replaceIcons();
     return;
   }
 
-  state.elements.forEach((el, index) => {
+  state.elements.forEach((el) => {
     const wrapper = document.createElement("div");
     wrapper.className = `canvas-element-wrapper ${state.selectedId === el.id ? "selected" : ""}`;
     wrapper.dataset.id = el.id;
-
-    // Aplica a largura escolhida ao bloco (100% por padrão) e padding
-    const elWidth = el.styles.width || "100%";
-    wrapper.style.width = elWidth;
-    wrapper.style.padding = "4px";
-    wrapper.style.boxSizing = "border-box";
+    Object.assign(wrapper.style, {
+      width: el.styles.width || "100%",
+      padding: "4px",
+      boxSizing: "border-box",
+    });
 
     const contentDiv = document.createElement("div");
-    contentDiv.style.width = "100%"; // Força o conteúdo a esticar horizontalmente
-    contentDiv.style.height = "100%"; // Força o conteúdo a esticar verticalmente
+    contentDiv.className = "canvas-element-inner";
+    Object.assign(contentDiv.style, { width: "100%", height: "100%" });
     contentDiv.innerHTML = getElementHTMLContent(el, false);
     wrapper.appendChild(contentDiv);
 
     const controls = document.createElement("div");
     controls.className = "element-controls";
 
-    // Mantém APENAS o botão de Apagar
     const btnDel = document.createElement("div");
     btnDel.className = "control-btn delete";
     btnDel.innerHTML = '<i data-feather="trash-2"></i>';
@@ -589,7 +650,12 @@ function renderCanvas() {
       e.stopPropagation();
       if (state.selectedId !== el.id) {
         state.selectedId = el.id;
-        renderAll();
+        document
+          .querySelectorAll(".canvas-element-wrapper")
+          .forEach((w) =>
+            w.classList.toggle("selected", w.dataset.id === el.id),
+          );
+        renderPropertiesPanel();
       }
     };
     canvas.appendChild(wrapper);
@@ -597,37 +663,27 @@ function renderCanvas() {
   replaceIcons();
 }
 
+function updateSingleCanvasElement(el) {
+  const wrapper = document.querySelector(
+    `.canvas-element-wrapper[data-id="${el.id}"]`,
+  );
+  if (!wrapper) return renderCanvas();
+  wrapper.style.width = el.styles.width || "100%";
+  const contentDiv = wrapper.querySelector(".canvas-element-inner");
+  if (contentDiv) contentDiv.innerHTML = getElementHTMLContent(el, false);
+}
+
 document.getElementById("main-area").onclick = () => {
   if (state.selectedId !== null) {
     state.selectedId = null;
-    renderAll();
+    document
+      .querySelectorAll(".canvas-element-wrapper.selected")
+      .forEach((w) => w.classList.remove("selected"));
+    renderPropertiesPanel();
   }
 };
 
-function handleImageUpload(inputElement, callback) {
-  const file = inputElement.files[0];
-  if (file) {
-    const reader = new FileReader();
-    reader.onload = function (e) {
-      callback(e.target.result);
-    };
-    reader.readAsDataURL(file);
-  }
-}
-
-// --- 5. LÓGICA DE MANIPULAÇÃO DE ELEMENTOS ---
-
-function moveElement(index, direction) {
-  if (index + direction < 0 || index + direction >= state.elements.length)
-    return;
-  const newArray = [...state.elements];
-  const temp = newArray[index];
-  newArray[index] = newArray[index + direction];
-  newArray[index + direction] = temp;
-  state.elements = newArray;
-  pushToHistory();
-  renderAll();
-}
+// --- 5. MANIPULAÇÃO DE ELEMENTOS E PAINEL DE PROPRIEDADES ---
 
 function deleteElement(id) {
   state.elements = state.elements.filter((el) => el.id !== id);
@@ -636,14 +692,14 @@ function deleteElement(id) {
   renderAll();
 }
 
-function updateElement(id, key, value, isStyle = false) {
+function updateElement(id, key, value, isStyle = false, redrawPanel = false) {
   const el = state.elements.find((e) => e.id === id);
   if (!el) return;
 
   if (isStyle) {
     el.styles[key] = value;
-    checkMission("m2"); // Cor/Estilo
-    if (key === "width") checkMission("m4"); // Missão da Grelha
+    if (key === "color" || key === "backgroundColor") checkMission("m2");
+    if (key === "width") checkMission("m4");
   } else {
     el[key] = value;
     if (
@@ -652,13 +708,188 @@ function updateElement(id, key, value, isStyle = false) {
       !value.includes("Digite seu texto")
     )
       checkMission("m1");
-    if (key === "href") checkMission("m6"); // Missão do Link
+    if (key.endsWith("Color")) checkMission("m2");
+    if (
+      (key === "src" && el.type === "image" && value) ||
+      (key === "imageUrl" && value) ||
+      (key === "cardImage" && value)
+    )
+      checkMission("m3");
+    if (key === "href" || key === "cardButtonLink") checkMission("m6");
     if (el.type === "card" && (key.startsWith("card") || key === "content"))
-      checkMission("m5"); // Missão do Card
+      checkMission("m5");
   }
-  pushToHistory();
-  renderCanvas();
+
+  updateSingleCanvasElement(el);
+  if (redrawPanel) {
+    pushToHistory();
+    renderPropertiesPanel();
+  } else {
+    scheduleHistoryPush();
+  }
 }
+
+const STYLE_OPTIONS = {
+  widths: [
+    ["100%", "100% (Cheia)"],
+    ["50%", "50% (Metade)"],
+    ["33.33%", "33% (Um Terço)"],
+    ["25%", "25% (Um Quarto)"],
+  ],
+  fontSizes: [
+    ["0.875rem", "Pequeno"],
+    ["1.1rem", "Normal"],
+    ["1.5rem", "Grande"],
+    ["2.5rem", "Muito Grande"],
+    ["3.5rem", "Gigante"],
+  ],
+  fontFamilies: [
+    ["system-ui, -apple-system, sans-serif", "Moderna (Padrão)"],
+    ["Arial, Helvetica, sans-serif", "Clara (Arial)"],
+    ["'Times New Roman', Times, serif", "Clássica (Serifada)"],
+    ["'Courier New', Courier, monospace", "Código (Monospace)"],
+    ["'Comic Sans MS', 'Marker Felt', sans-serif", "Divertida (Quadrinhos)"],
+    ["Impact, fantasy", "Forte (Impact)"],
+  ],
+  alignments: [
+    ["left", "Esquerda"],
+    ["center", "Centro"],
+    ["right", "Direita"],
+  ],
+  radii: [
+    ["0px", "Quadradas"],
+    ["8px", "Leves"],
+    ["16px", "Arredondadas"],
+    ["99px", "Pílula"],
+  ],
+  bgSizes: [
+    ["cover", "Preencher Tela Inteira"],
+    ["contain", "Ajustar ao Tamanho"],
+    ["auto", "Tamanho Original"],
+  ],
+};
+
+const ui = {
+  label(text) {
+    const el = document.createElement("label");
+    el.className = "block text-xs font-bold text-slate-500 uppercase mb-2";
+    el.textContent = text;
+    return el;
+  },
+
+  textInput(value, onInput, opts = {}) {
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = `w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:border-indigo-500 outline-none transition ${opts.mono ? "font-mono text-xs" : ""} ${opts.className || ""}`;
+    input.value = value || "";
+    if (opts.placeholder) input.placeholder = opts.placeholder;
+    input.oninput = (e) => onInput(e.target.value);
+    return input;
+  },
+
+  textarea(value, onInput, rows = 4) {
+    const ta = document.createElement("textarea");
+    ta.rows = rows;
+    ta.className =
+      "w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition";
+    ta.value = value || "";
+    ta.oninput = (e) => onInput(e.target.value);
+    return ta;
+  },
+
+  colorInput(value, onInput, title = "", fullWidth = false) {
+    const input = document.createElement("input");
+    input.type = "color";
+    input.className = fullWidth
+      ? "w-full h-8 cursor-pointer rounded border border-slate-200"
+      : "w-10 h-10 p-0.5 border border-slate-300 rounded-lg cursor-pointer flex-shrink-0";
+    input.value = value || "#000000";
+    if (title) input.title = title;
+    input.oninput = (e) => onInput(e.target.value);
+    return input;
+  },
+
+  select(optionsList, selectedValue, onChange) {
+    const sel = document.createElement("select");
+    sel.className =
+      "w-full p-2 border border-slate-300 rounded text-sm outline-none";
+    optionsList.forEach(([val, text]) => {
+      const opt = document.createElement("option");
+      opt.value = val;
+      opt.textContent = text;
+      opt.selected = val === selectedValue;
+      sel.appendChild(opt);
+    });
+    sel.onchange = (e) => onChange(e.target.value);
+    return sel;
+  },
+
+  addField(parent, labelText, controlEl) {
+    parent.append(this.label(labelText), controlEl);
+  },
+
+  addStyleRow(parent, labelText, controlEl) {
+    const row = document.createElement("div");
+    row.className = "flex items-center justify-between mb-3";
+    const lbl = document.createElement("label");
+    lbl.className = "text-sm font-medium text-slate-600";
+    lbl.textContent = labelText;
+    const rightCol = document.createElement("div");
+    rightCol.className = "w-1/2";
+    rightCol.appendChild(controlEl);
+    row.append(lbl, rightCol);
+    parent.appendChild(row);
+  },
+
+  imageUploadBox({
+    title,
+    icon = "upload-cloud",
+    currentValue,
+    onUpload,
+    onRemove,
+    removeLabel = "Remover Imagem",
+    hint = "",
+    theme = "indigo",
+    accept = "image/png, image/jpeg, image/jpg",
+  }) {
+    const box = document.createElement("div");
+    const isIndigo = theme === "indigo";
+    box.className = isIndigo
+      ? "p-3 bg-indigo-50 border border-indigo-100 rounded-xl relative mb-4"
+      : "p-3 bg-slate-50 border border-slate-200 rounded-xl relative mb-4";
+
+    const lbl = document.createElement("label");
+    lbl.className = `block text-xs font-bold ${isIndigo ? "text-indigo-700" : "text-slate-700"} uppercase mb-2`;
+    lbl.innerHTML = `<i data-feather="${icon}" class="w-3 h-3 inline"></i> ${title}`;
+    box.appendChild(lbl);
+
+    const fileInput = document.createElement("input");
+    fileInput.type = "file";
+    fileInput.accept = accept;
+    fileInput.className = isIndigo
+      ? "text-xs w-full text-slate-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 cursor-pointer"
+      : "text-xs w-full text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-slate-200 file:text-slate-700 hover:file:bg-slate-300 cursor-pointer";
+    fileInput.onchange = () => handleImageUpload(fileInput, onUpload);
+    box.appendChild(fileInput);
+
+    if (hint) {
+      const hintEl = document.createElement("div");
+      hintEl.className = "text-[10px] text-slate-400 mt-2";
+      hintEl.textContent = hint;
+      box.appendChild(hintEl);
+    }
+
+    if (currentValue) {
+      const removeBtn = document.createElement("button");
+      removeBtn.className =
+        "w-full mt-3 py-1.5 bg-white border border-red-200 hover:bg-red-50 text-red-600 rounded-md text-xs font-bold transition flex items-center justify-center gap-1";
+      removeBtn.innerHTML = `<i data-feather="trash-2" class="w-3 h-3 inline"></i> ${removeLabel}`;
+      removeBtn.onclick = onRemove;
+      box.appendChild(removeBtn);
+    }
+    return box;
+  },
+};
 
 function renderPropertiesPanel() {
   const panel = document.getElementById("properties-panel");
@@ -667,294 +898,306 @@ function renderPropertiesPanel() {
   const el = state.elements.find((e) => e.id === state.selectedId);
 
   if (!el) {
-    panel.innerHTML = `
-            <div class="px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-[10px] font-black uppercase tracking-wider mb-6 inline-block">Design da Página</div>
-            <div class="space-y-6">
-                <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Cor de Fundo (Página)</label>
-                    <input type="color" class="w-full h-10 cursor-pointer rounded border border-slate-200" value="${state.pageSettings.backgroundColor}" oninput="actions.updatePageSettings('backgroundColor', this.value)">
-                </div>
-                
-                <div class="p-3 bg-indigo-50 border border-indigo-100 rounded-xl relative">
-                    <label class="block text-xs font-bold text-indigo-700 uppercase mb-2"><i data-feather="upload-cloud" class="w-3 h-3 inline"></i> Upload de Imagem de Fundo</label>
-                    <input type="file" accept="image/png, image/jpeg, image/jpg" class="text-xs w-full text-slate-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 cursor-pointer" onchange="handleImageUpload(this, (base64) => actions.updatePageSettings('backgroundImage', base64, true))">
-                    ${state.pageSettings.backgroundImage ? `<button onclick="actions.updatePageSettings('backgroundImage', '', true)" class="w-full mt-3 py-1.5 bg-white border border-red-200 hover:bg-red-50 text-red-600 rounded-md text-xs font-bold transition flex items-center justify-center gap-1"><i data-feather="trash-2" class="w-3 h-3 inline"></i> Remover Fundo Atual</button>` : ""}
-                </div>
+    panel.insertAdjacentHTML(
+      "beforeend",
+      `<div class="px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-[10px] font-black uppercase tracking-wider mb-6 inline-block">Design da Página</div>`,
+    );
+    const container = document.createElement("div");
+    container.className = "space-y-6";
 
-                <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Ou Cole o URL da Imagem</label>
-                    <input type="text" class="w-full p-2.5 text-xs font-mono border border-slate-300 rounded-lg focus:border-indigo-500 outline-none" value="${state.pageSettings.backgroundImage?.startsWith("data:") ? "" : state.pageSettings.backgroundImage}" onchange="actions.updatePageSettings('backgroundImage', this.value, true)" placeholder="Ex: Cole o link e clique fora da caixa...">
-                </div>
+    const bgGroup = document.createElement("div");
+    const bgColorInput = ui.colorInput(
+      state.pageSettings.backgroundColor,
+      (v) => actions.updatePageSettings("backgroundColor", v),
+      "Escolher Cor de Fundo",
+      true,
+    );
+    bgColorInput.className =
+      "w-full h-10 cursor-pointer rounded border border-slate-200";
+    ui.addField(bgGroup, "Cor de Fundo (Página)", bgColorInput);
 
-                <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Preenchimento da Imagem</label>
-                    <select aria-label="Definir preenchimento da imagem" class="w-full p-2 border border-slate-300 rounded text-sm outline-none" onchange="actions.updatePageSettings('backgroundSize', this.value)">
-                        <option value="cover" ${state.pageSettings.backgroundSize === "cover" ? "selected" : ""}>Preencher Tela Inteira</option>
-                        <option value="contain" ${state.pageSettings.backgroundSize === "contain" ? "selected" : ""}>Ajustar ao Tamanho</option>
-                        <option value="auto" ${state.pageSettings.backgroundSize === "auto" ? "selected" : ""}>Tamanho Original</option>
-                    </select>
-                </div>
-            </div>`;
+    const urlGroup = document.createElement("div");
+    const urlValue = state.pageSettings.backgroundImage?.startsWith("data:")
+      ? ""
+      : state.pageSettings.backgroundImage;
+    const urlInput = ui.textInput(
+      urlValue,
+      (v) => actions.updatePageSettings("backgroundImage", v, false),
+      { mono: true, placeholder: "Ex: https://..." },
+    );
+    urlInput.onchange = (e) =>
+      actions.updatePageSettings("backgroundImage", e.target.value, true);
+    ui.addField(urlGroup, "Ou Cole o URL da Imagem", urlInput);
+
+    const sizeGroup = document.createElement("div");
+    ui.addField(
+      sizeGroup,
+      "Preenchimento da Imagem",
+      ui.select(STYLE_OPTIONS.bgSizes, state.pageSettings.backgroundSize, (v) =>
+        actions.updatePageSettings("backgroundSize", v),
+      ),
+    );
+
+    container.append(
+      bgGroup,
+      ui.imageUploadBox({
+        title: "Upload de Imagem de Fundo",
+        currentValue: state.pageSettings.backgroundImage,
+        removeLabel: "Remover Fundo Atual",
+        onUpload: (b64) =>
+          actions.updatePageSettings("backgroundImage", b64, true),
+        onRemove: () => actions.updatePageSettings("backgroundImage", "", true),
+      }),
+      urlGroup,
+      sizeGroup,
+    );
+    panel.appendChild(container);
     replaceIcons();
     return;
   }
 
   const elTypeLabel =
     blockTypes.find((b) => b.type === el.type)?.label || "Elemento";
-
-  const header = document.createElement("div");
-  header.innerHTML = `<div class="inline-block px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-[10px] font-black uppercase tracking-wider mb-6">Editando: ${elTypeLabel}</div>`;
-  panel.appendChild(header);
+  panel.insertAdjacentHTML(
+    "beforeend",
+    `<div class="inline-block px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-[10px] font-black uppercase tracking-wider mb-6">Editando: ${elTypeLabel}</div>`,
+  );
 
   const formContainer = document.createElement("div");
   formContainer.className = "space-y-6";
-
   const contentSection = document.createElement("div");
+  const setProp =
+    (key, redraw = false) =>
+    (val) =>
+      updateElement(el.id, key, val, false, redraw);
+  const setStyle = (key) => (val) => updateElement(el.id, key, val, true);
 
   if (el.type === "title") {
-    contentSection.innerHTML = `
-            <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Texto do Título</label>
-            <input type="text" class="w-full p-2.5 mb-4 text-sm border border-slate-300 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition" value="${el.content}">
-            
-            <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl relative">
-                <label class="block text-xs font-bold text-slate-700 uppercase mb-2"><i data-feather="image" class="w-3 h-3 inline"></i> Adicionar Ícone ao lado</label>
-                <input type="file" accept="image/png, image/jpeg, image/jpg, image/svg+xml" class="text-xs w-full text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-slate-200 file:text-slate-700 hover:file:bg-slate-300 cursor-pointer" onchange="handleImageUpload(this, (base64) => updateElement('${el.id}', 'imageUrl', base64))">
-                <div class="text-[10px] text-slate-400 mt-2 mb-2">Escolha uma imagem pequena para acompanhar o título.</div>
-                ${el.imageUrl ? `<button onclick="updateElement('${el.id}', 'imageUrl', '')" class="w-full mt-2 py-1.5 bg-white border border-red-200 hover:bg-red-50 text-red-600 rounded-md text-xs font-bold transition flex items-center justify-center gap-1"><i data-feather="trash-2" class="w-3 h-3 inline"></i> Remover Ícone</button>` : ""}
-            </div>
-        `;
-    contentSection.querySelector('input[type="text"]').oninput = (e) =>
-      updateElement(el.id, "content", e.target.value);
-  } else if (el.type === "button") {
-    contentSection.innerHTML = `
-            <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Texto do Botão</label>
-            <input type="text" class="w-full p-2.5 mb-4 text-sm border border-slate-300 rounded-lg focus:border-indigo-500 outline-none transition" value="${el.content}">
-            
-            <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Link de Destino</label>
-            <input type="text" class="w-full p-2.5 text-sm font-mono border border-slate-300 rounded-lg focus:border-indigo-500 outline-none" value="${el.href || ""}" placeholder="Ex: https://google.com">
-        `;
-    contentSection.querySelectorAll("input")[0].oninput = (e) =>
-      updateElement(el.id, "content", e.target.value);
-    contentSection.querySelectorAll("input")[1].oninput = (e) =>
-      updateElement(el.id, "href", e.target.value);
+    ui.addField(
+      contentSection,
+      "Texto do Título",
+      ui.textInput(el.content, setProp("content"), { className: "mb-4" }),
+    );
+    contentSection.appendChild(
+      ui.imageUploadBox({
+        title: "Adicionar Ícone ao lado",
+        icon: "image",
+        currentValue: el.imageUrl,
+        removeLabel: "Remover Ícone",
+        hint: "Escolha uma imagem pequena para acompanhar o título.",
+        theme: "slate",
+        accept: "image/png, image/jpeg, image/jpg, image/svg+xml",
+        onUpload: setProp("imageUrl", true),
+        onRemove: () => updateElement(el.id, "imageUrl", "", false, true),
+      }),
+    );
+  } else if (el.type === "button" || el.type === "link") {
+    const isBtn = el.type === "button";
+    ui.addField(
+      contentSection,
+      isBtn ? "Texto do Botão" : "Texto do Link",
+      ui.textInput(el.content, setProp("content"), { className: "mb-4" }),
+    );
+    ui.addField(
+      contentSection,
+      isBtn ? "Link de Destino" : "Endereço (URL)",
+      ui.textInput(el.href, setProp("href"), {
+        mono: true,
+        placeholder: "Ex: https://google.com",
+      }),
+    );
   } else if (el.type === "card") {
-    contentSection.innerHTML = `
-            <div class="p-3 bg-indigo-50 border border-indigo-100 rounded-xl relative mb-4">
-                <label class="block text-xs font-bold text-indigo-700 uppercase mb-2"><i data-feather="image" class="w-3 h-3 inline"></i> Imagem do Topo</label>
-                <input type="file" accept="image/png, image/jpeg, image/jpg" class="text-xs w-full text-slate-500 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 cursor-pointer" onchange="handleImageUpload(this, (base64) => updateElement('${el.id}', 'cardImage', base64))">
-                ${el.cardImage ? `<button onclick="updateElement('${el.id}', 'cardImage', '')" class="w-full mt-2 py-1.5 bg-white border border-red-200 hover:bg-red-50 text-red-600 rounded-md text-xs font-bold transition flex items-center justify-center gap-1"><i data-feather="trash-2" class="w-3 h-3 inline"></i> Remover Imagem</button>` : ""}
-            </div>
-            
-            <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Título Principal</label>
-            <div class="flex gap-2 mb-3">
-                <input type="text" class="w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:border-indigo-500 outline-none" value="${el.cardTitle || ""}" oninput="updateElement('${el.id}', 'cardTitle', this.value)">
-                <input type="color" class="w-10 h-10 p-0.5 border border-slate-300 rounded-lg cursor-pointer flex-shrink-0" value="${el.cardTitleColor || "#1e293b"}" oninput="updateElement('${el.id}', 'cardTitleColor', this.value)">
-            </div>
-            
-            <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Subtítulo</label>
-            <div class="flex gap-2 mb-3">
-                <input type="text" class="w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:border-indigo-500 outline-none" value="${el.cardSubtitle || ""}" oninput="updateElement('${el.id}', 'cardSubtitle', this.value)">
-                <input type="color" class="w-10 h-10 p-0.5 border border-slate-300 rounded-lg cursor-pointer flex-shrink-0" value="${el.cardSubtitleColor || "#64748b"}" oninput="updateElement('${el.id}', 'cardSubtitleColor', this.value)">
-            </div>
-            
-            <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Texto Descritivo</label>
-            <div class="flex gap-2 mb-3 items-start">
-                <textarea rows="3" class="w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:border-indigo-500 outline-none">${el.content}</textarea>
-                <input type="color" class="w-10 h-10 p-0.5 border border-slate-300 rounded-lg cursor-pointer flex-shrink-0" value="${el.cardTextColor || "#475569"}" oninput="updateElement('${el.id}', 'cardTextColor', this.value)">
-            </div>
-            
-            <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Texto e Cores do Botão</label>
-            <div class="flex gap-2 mb-3">
-                <input type="text" class="w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:border-indigo-500 outline-none" value="${el.cardButton || ""}" placeholder="Deixe vazio para ocultar" oninput="updateElement('${el.id}', 'cardButton', this.value)">
-                <input type="color" class="w-10 h-10 p-0.5 border border-slate-300 rounded-lg cursor-pointer flex-shrink-0" value="${el.cardButtonTextColor || "#ffffff"}" title="Cor da Letra" oninput="updateElement('${el.id}', 'cardButtonTextColor', this.value)">
-                <input type="color" aria-label="Escolher Cor de Fundo" class="w-full h-10 cursor-pointer rounded border border-slate-200" value="${state.pageSettings.backgroundColor}" oninput="actions.updatePageSettings('backgroundColor', this.value, true)">
-            
-            <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Link do Botão</label>
-            <input type="text" class="w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:border-indigo-500 outline-none" value="${el.cardButtonLink || ""}" oninput="updateElement('${el.id}', 'cardButtonLink', this.value)">
-        `;
-    contentSection.querySelector("textarea").oninput = (e) =>
-      updateElement(el.id, "content", e.target.value);
-  } else if (el.type === "text" || el.type === "list") {
-    contentSection.innerHTML = `
-            <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Texto ${el.type === "list" ? "(um por linha)" : ""}</label>
-            <textarea rows="5" class="w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition">${el.content}</textarea>
-        `;
-    contentSection.querySelector("textarea").oninput = (e) =>
-      updateElement(el.id, "content", e.target.value);
-  } else if (el.type === "image") {
-    contentSection.innerHTML = `
-            <div class="p-3 bg-indigo-50 border border-indigo-100 rounded-xl relative mb-4">
-                <label class="block text-xs font-bold text-indigo-700 uppercase mb-2"><i data-feather="upload-cloud" class="w-3 h-3 inline"></i> Fazer Upload de Imagem</label>
-                <input type="file" aria-label="Fazer upload de imagem de fundo" accept="image/png, image/jpeg, image/jpg" class="text-xs w-full text-slate-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 cursor-pointer" onchange="handleImageUpload(this, (base64) => updateElement('${el.id}', 'src', base64))">
-                ${el.src ? `<button onclick="updateElement('${el.id}', 'src', '')" class="w-full mt-3 py-1.5 bg-white border border-red-200 hover:bg-red-50 text-red-600 rounded-md text-xs font-bold transition flex items-center justify-center gap-1"><i data-feather="trash-2" class="w-3 h-3 inline"></i> Remover Imagem</button>` : ""}
-            </div>
+    contentSection.appendChild(
+      ui.imageUploadBox({
+        title: "Imagem do Topo",
+        icon: "image",
+        currentValue: el.cardImage,
+        onUpload: setProp("cardImage", true),
+        onRemove: () => updateElement(el.id, "cardImage", "", false, true),
+      }),
+    );
 
-            <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Ou Cole a URL da Imagem</label>
-            <input type="text" class="w-full p-2.5 text-xs font-mono border border-slate-300 rounded-lg focus:border-indigo-500 outline-none" value="${el.src?.startsWith("data:") ? "" : el.src}" placeholder="Ex: https://...">
-        `;
-    contentSection.querySelector('input[type="text"]').oninput = (e) =>
-      updateElement(el.id, "src", e.target.value);
-  } else if (el.type === "link") {
-    contentSection.innerHTML = `
-            <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Texto do Link</label>
-            <input type="text" id="link-text" class="w-full p-2.5 mb-4 text-sm border border-slate-300 rounded-lg focus:border-indigo-500 outline-none" value="${el.content}">
-            
-            <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Endereço (URL)</label>
-            <input type="text" id="link-url" class="w-full p-2.5 text-xs font-mono border border-slate-300 rounded-lg focus:border-indigo-500 outline-none" value="${el.href || ""}">
-        `;
-    contentSection.querySelector("#link-text").oninput = (e) =>
-      updateElement(el.id, "content", e.target.value);
-    contentSection.querySelector("#link-url").oninput = (e) =>
-      updateElement(el.id, "href", e.target.value);
-  } else if (el.type === "video") {
-    contentSection.innerHTML = `
-            <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Link do Vídeo (Youtube)</label>
-            <input type="text" class="w-full p-2.5 text-xs font-mono border border-slate-300 rounded-lg focus:border-indigo-500 outline-none" value="${el.src || ""}" placeholder="Cole o link do Youtube aqui...">
-            <div class="text-[10px] text-slate-400 mt-2">Dica: Cole o link completo, ex: https://www.youtube.com/watch?v=dQw4w9WgXcQ</div>
-        `;
-    contentSection.querySelector("input").oninput = (e) => {
-      let url = e.target.value;
-      if (url.includes("youtube.com/watch?v=")) {
-        url = url.replace("watch?v=", "embed/");
-        const ampersandPos = url.indexOf("&");
-        if (ampersandPos !== -1) {
-          url = url.substring(0, ampersandPos);
-        }
-      } else if (url.includes("youtu.be/")) {
-        url = url.replace("youtu.be/", "www.youtube.com/embed/");
-      }
-      updateElement(el.id, "src", url);
+    const addCardRow = (
+      label,
+      textKey,
+      colorKey,
+      defaultColor,
+      multiline = false,
+    ) => {
+      contentSection.appendChild(ui.label(label));
+      const row = document.createElement("div");
+      row.className = `flex gap-2 mb-3 ${multiline ? "items-start" : ""}`;
+      const textCtrl = multiline
+        ? ui.textarea(el[textKey], setProp(textKey), 3)
+        : ui.textInput(el[textKey], setProp(textKey));
+      row.append(
+        textCtrl,
+        ui.colorInput(el[colorKey] || defaultColor, setProp(colorKey)),
+      );
+      contentSection.appendChild(row);
     };
+
+    addCardRow("Título Principal", "cardTitle", "cardTitleColor", "#1e293b");
+    addCardRow("Subtítulo", "cardSubtitle", "cardSubtitleColor", "#64748b");
+    addCardRow("Texto Descritivo", "content", "cardTextColor", "#475569", true);
+
+    contentSection.appendChild(ui.label("Texto e Cores do Botão"));
+    const btnRow = document.createElement("div");
+    btnRow.className = "flex gap-2 mb-3";
+    btnRow.append(
+      ui.textInput(el.cardButton, setProp("cardButton"), {
+        placeholder: "Deixe vazio para ocultar",
+      }),
+      ui.colorInput(
+        el.cardButtonTextColor || "#ffffff",
+        setProp("cardButtonTextColor"),
+        "Cor da Letra do Botão",
+      ),
+      ui.colorInput(
+        el.cardButtonBgColor || "#4f46e5",
+        setProp("cardButtonBgColor"),
+        "Cor de Fundo do Botão",
+      ),
+    );
+    contentSection.appendChild(btnRow);
+    ui.addField(
+      contentSection,
+      "Link do Botão",
+      ui.textInput(el.cardButtonLink, setProp("cardButtonLink"), {
+        mono: true,
+        placeholder: "Ex: https://...",
+      }),
+    );
+  } else if (el.type === "text" || el.type === "list") {
+    ui.addField(
+      contentSection,
+      `Texto ${el.type === "list" ? "(um por linha)" : ""}`,
+      ui.textarea(el.content, setProp("content"), 5),
+    );
+  } else if (el.type === "image") {
+    contentSection.appendChild(
+      ui.imageUploadBox({
+        title: "Fazer Upload de Imagem",
+        currentValue: el.src,
+        onUpload: setProp("src", true),
+        onRemove: () => updateElement(el.id, "src", "", false, true),
+      }),
+    );
+    const urlVal = el.src?.startsWith("data:") ? "" : el.src;
+    ui.addField(
+      contentSection,
+      "Ou Cole a URL da Imagem",
+      ui.textInput(urlVal, setProp("src"), {
+        mono: true,
+        placeholder: "Ex: https://...",
+      }),
+    );
+  } else if (el.type === "video") {
+    ui.addField(
+      contentSection,
+      "Link do Vídeo",
+      ui.textInput(
+        el.src,
+        (v) => updateElement(el.id, "src", formatVideoUrl(v)),
+        {
+          mono: true,
+          placeholder: "Cole o link do YouTube ou vídeo (.mp4)...",
+        },
+      ),
+    );
+    const isLocalFile = window.location.protocol === "file:";
+    contentSection.insertAdjacentHTML(
+      "beforeend",
+      `<div class="text-[10px] text-slate-400 mt-2 leading-relaxed">Aceita links do YouTube, código de incorporação (iframe) ou link direto <code>.mp4</code>.${isLocalFile ? '<br><span class="text-amber-600 font-medium">Nota: Como o arquivo está aberto localmente (file://), vídeos do YouTube exibem a capa clicável (o YouTube exige servidor HTTP/HTTPS para tocar embutido).</span>' : ""}</div>`,
+    );
   }
 
-  if (contentSection.innerHTML) formContainer.appendChild(contentSection);
+  if (contentSection.childNodes.length > 0) {
+    formContainer.appendChild(contentSection);
+    formContainer.insertAdjacentHTML(
+      "beforeend",
+      '<hr class="border-slate-100 my-4">',
+    );
+  }
 
-  formContainer.insertAdjacentHTML(
-    "beforeend",
-    '<hr class="border-slate-100 my-4">',
-  );
-
-  // MÓDULO DE TAMANHO
+  // Módulo de Tamanho
   const layoutSection = document.createElement("div");
-  const sizeValLayout = el.styles.width || "100%";
-  layoutSection.innerHTML = `
-        <h3 class="text-xs font-black text-slate-700 uppercase tracking-wider mb-4 mt-6">Tamanho do Bloco</h3>
-        <div class="flex items-center justify-between mb-3">
-            <label class="text-sm font-medium text-slate-600">Largura</label>
-            <div class="w-1/2">
-                <select class="w-full p-2 border border-slate-300 rounded text-sm outline-none" onchange="updateElement('${el.id}', 'width', this.value, true)">
-                    <option value="100%" ${sizeValLayout === "100%" ? "selected" : ""}>100% (Cheia)</option>
-                    <option value="50%" ${sizeValLayout === "50%" ? "selected" : ""}>50% (Metade)</option>
-                    <option value="33.33%" ${sizeValLayout === "33.33%" ? "selected" : ""}>33% (Um Terço)</option>
-                    <option value="25%" ${sizeValLayout === "25%" ? "selected" : ""}>25% (Um Quarto)</option>
-                </select>
-            </div>
-        </div>
-    `;
+  layoutSection.innerHTML = `<h3 class="text-xs font-black text-slate-700 uppercase tracking-wider mb-4 mt-6">Tamanho do Bloco</h3>`;
+  ui.addStyleRow(
+    layoutSection,
+    "Largura",
+    ui.select(
+      STYLE_OPTIONS.widths,
+      el.styles.width || "100%",
+      setStyle("width"),
+    ),
+  );
   formContainer.appendChild(layoutSection);
 
+  // Módulo de Aparência (CSS)
   const styleSection = document.createElement("div");
   styleSection.innerHTML = `<h3 class="text-xs font-black text-slate-700 uppercase tracking-wider mb-4 mt-6">Aparência (CSS)</h3>`;
 
-  const createStyleRow = (label, inputHtml) => {
-    const row = document.createElement("div");
-    row.className = "flex items-center justify-between mb-3";
-    row.innerHTML = `<label class="text-sm font-medium text-slate-600">${label}</label><div class="w-1/2">${inputHtml}</div>`;
-    return row;
-  };
-
   if (!["image", "separator", "video", "card"].includes(el.type)) {
-    const colorRow = createStyleRow(
+    ui.addStyleRow(
+      styleSection,
       "Cor da Letra",
-      `<input type="color" class="w-full h-8 cursor-pointer rounded border border-slate-200" value="${el.styles.color || "#000000"}">`,
+      ui.colorInput(el.styles.color || "#000000", setStyle("color"), "", true),
     );
-    colorRow.querySelector("input").oninput = (e) =>
-      updateElement(el.id, "color", e.target.value, true);
-    styleSection.appendChild(colorRow);
   }
-
   if (["button", "card"].includes(el.type)) {
-    const bgColorRow = createStyleRow(
+    ui.addStyleRow(
+      styleSection,
       "Cor de Fundo",
-      `<input type="color" class="w-full h-8 cursor-pointer rounded border border-slate-200" value="${el.styles.backgroundColor || "#ffffff"}">`,
+      ui.colorInput(
+        el.styles.backgroundColor || "#ffffff",
+        setStyle("backgroundColor"),
+        "",
+        true,
+      ),
     );
-    bgColorRow.querySelector("input").oninput = (e) =>
-      updateElement(el.id, "backgroundColor", e.target.value, true);
-    styleSection.appendChild(bgColorRow);
   }
-
   if (["title", "text", "list", "button", "link", "card"].includes(el.type)) {
-    const sizeVal = el.styles.fontSize || "1rem";
-    const sizeRow = createStyleRow(
+    ui.addStyleRow(
+      styleSection,
       "Tamanho Fonte",
-      `
-            <select class="w-full p-2 border border-slate-300 rounded text-sm outline-none">
-                <option value="0.875rem" ${sizeVal === "0.875rem" ? "selected" : ""}>Pequeno</option>
-                <option value="1.1rem" ${sizeVal === "1.1rem" ? "selected" : ""}>Normal</option>
-                <option value="1.5rem" ${sizeVal === "1.5rem" ? "selected" : ""}>Grande</option>
-                <option value="2.5rem" ${sizeVal === "2.5rem" ? "selected" : ""}>Muito Grande</option>
-                <option value="3.5rem" ${sizeVal === "3.5rem" ? "selected" : ""}>Gigante</option>
-            </select>
-        `,
+      ui.select(
+        STYLE_OPTIONS.fontSizes,
+        el.styles.fontSize || "1rem",
+        setStyle("fontSize"),
+      ),
     );
-    sizeRow.querySelector("select").onchange = (e) =>
-      updateElement(el.id, "fontSize", e.target.value, true);
-    styleSection.appendChild(sizeRow);
-
-    // NOVO: Menu de Tipografia (Web Safe Fonts)
-    const fontVal =
-      el.styles.fontFamily || "system-ui, -apple-system, sans-serif";
-    const fontRow = createStyleRow(
+    ui.addStyleRow(
+      styleSection,
       "Tipo de Fonte",
-      `
-            <select class="w-full p-2 border border-slate-300 rounded text-sm outline-none">
-                <option value="system-ui, -apple-system, sans-serif" ${fontVal === "system-ui, -apple-system, sans-serif" ? "selected" : ""}>Moderna (Padrão)</option>
-                <option value="Arial, Helvetica, sans-serif" ${fontVal === "Arial, Helvetica, sans-serif" ? "selected" : ""}>Clara (Arial)</option>
-                <option value="'Times New Roman', Times, serif" ${fontVal === "'Times New Roman', Times, serif" ? "selected" : ""}>Clássica (Serifada)</option>
-                <option value="'Courier New', Courier, monospace" ${fontVal === "'Courier New', Courier, monospace" ? "selected" : ""}>Código (Monospace)</option>
-                <option value="'Comic Sans MS', 'Marker Felt', sans-serif" ${fontVal === "'Comic Sans MS', 'Marker Felt', sans-serif" ? "selected" : ""}>Divertida (Quadrinhos)</option>
-                <option value="Impact, fantasy" ${fontVal === "Impact, fantasy" ? "selected" : ""}>Forte (Impact)</option>
-            </select>
-        `,
+      ui.select(
+        STYLE_OPTIONS.fontFamilies,
+        el.styles.fontFamily || "system-ui, -apple-system, sans-serif",
+        setStyle("fontFamily"),
+      ),
     );
-    fontRow.querySelector("select").onchange = (e) =>
-      updateElement(el.id, "fontFamily", e.target.value, true);
-    styleSection.appendChild(fontRow);
   }
-
   if (["title", "text", "card"].includes(el.type)) {
-    const alignVal = el.styles.textAlign || "left";
-    const alignRow = createStyleRow(
+    ui.addStyleRow(
+      styleSection,
       "Alinhamento",
-      `
-            <select class="w-full p-2 border border-slate-300 rounded text-sm outline-none">
-                <option value="left" ${alignVal === "left" ? "selected" : ""}>Esquerda</option>
-                <option value="center" ${alignVal === "center" ? "selected" : ""}>Centro</option>
-                <option value="right" ${alignVal === "right" ? "selected" : ""}>Direita</option>
-            </select>
-        `,
+      ui.select(
+        STYLE_OPTIONS.alignments,
+        el.styles.textAlign || "left",
+        setStyle("textAlign"),
+      ),
     );
-    alignRow.querySelector("select").onchange = (e) =>
-      updateElement(el.id, "textAlign", e.target.value, true);
-    styleSection.appendChild(alignRow);
   }
-
   if (["image", "button", "card", "video"].includes(el.type)) {
-    const radiusVal = el.styles.borderRadius || "0px";
-    const radiusRow = createStyleRow(
+    ui.addStyleRow(
+      styleSection,
       "Bordas",
-      `
-            <select class="w-full p-2 border border-slate-300 rounded text-sm outline-none">
-                <option value="0px" ${radiusVal === "0px" ? "selected" : ""}>Quadradas</option>
-                <option value="8px" ${radiusVal === "8px" ? "selected" : ""}>Leves</option>
-                <option value="16px" ${radiusVal === "16px" ? "selected" : ""}>Arredondadas</option>
-                <option value="99px" ${radiusVal === "99px" ? "selected" : ""}>Pílula</option>
-            </select>
-        `,
+      ui.select(
+        STYLE_OPTIONS.radii,
+        el.styles.borderRadius || "0px",
+        setStyle("borderRadius"),
+      ),
     );
-    radiusRow.querySelector("select").onchange = (e) =>
-      updateElement(el.id, "borderRadius", e.target.value, true);
-    styleSection.appendChild(radiusRow);
   }
 
   formContainer.appendChild(styleSection);
@@ -971,54 +1214,50 @@ function renderAll() {
 
 // --- 6. EXPORTAÇÃO E VISUALIZAÇÃO ---
 
-const htmlGenerator = {
-  generateEducationalHTML(elements) {
-    let html = "";
-    elements.forEach((el) => {
-      let comment = "";
-      switch (el.type) {
-        case "title":
-          comment = "<!-- A tag <h1> cria um título principal gigante! -->";
-          break;
-        case "text":
-          comment =
-            "<!-- A tag <p> (parágrafo) é onde colocamos nossos textos normais. -->";
-          break;
-        case "image":
-          comment = "<!-- A tag <img> exibe imagens. -->";
-          break;
-        case "button":
-          comment = "<!-- A tag <button> cria um botão. -->";
-          break;
-        case "link":
-          comment = "<!-- A tag <a> (âncora) cria um link. -->";
-          break;
-        case "list":
-          comment =
-            "<!-- A tag <ul> cria uma lista e <li> cria cada item dessa lista. -->";
-          break;
-        case "card":
-          comment = "<!-- A tag <div> agrupa conteúdos. -->";
-          break;
-        case "separator":
-          comment = "<!-- A tag <hr> desenha uma linha separadora. -->";
-          break;
-        case "video":
-          comment =
-            "<!-- A tag <iframe> embute outra página da web, como um vídeo do Youtube. -->";
-          break;
-      }
-      const width = el.styles.width || "100%";
-      html += `\n    ${comment}\n    <div style="width: ${width}; padding: 4px; box-sizing: border-box;">\n        ${getElementHTMLContent(el, true)}\n    </div>\n`;
-    });
-    return html;
-  },
+const EDUCATIONAL_COMMENTS = {
+  title: "<!-- A tag <h1> cria um título principal gigante! -->",
+  text: "<!-- A tag <p> (parágrafo) é onde colocamos nossos textos normais. -->",
+  image: "<!-- A tag <img> exibe imagens. -->",
+  button: "<!-- A tag <button> ou <a> estilizada cria um botão interativo. -->",
+  link: "<!-- A tag <a> (âncora) cria um link. -->",
+  list: "<!-- A tag <ul> cria uma lista e <li> cria cada item dessa lista. -->",
+  card: "<!-- A tag <div> agrupa conteúdos em um cartão. -->",
+  separator: "<!-- A tag <hr> desenha uma linha separadora. -->",
+  video:
+    "<!-- A tag <iframe> embute outra página da web, como um vídeo do Youtube. -->",
+};
 
-  generateCSSContent() {
+const htmlGenerator = {
+  getPageBackgroundCSS() {
     let bgStyle = `background-color: ${state.pageSettings.backgroundColor};`;
     if (state.pageSettings.backgroundImage) {
       bgStyle += ` background-image: url('${state.pageSettings.backgroundImage}'); background-size: ${state.pageSettings.backgroundSize}; background-position: center; background-attachment: fixed;`;
     }
+    return bgStyle;
+  },
+
+  wrapElementHTML(el, addComment = false, exportMode = true) {
+    const content = getElementHTMLContent(el, exportMode);
+    if (!content) return "";
+    const width = el.styles.width || "100%";
+    const comment =
+      addComment && EDUCATIONAL_COMMENTS[el.type]
+        ? `\n    ${EDUCATIONAL_COMMENTS[el.type]}`
+        : "";
+    return `${comment}\n    <div style="width: ${width}; padding: 4px; box-sizing: border-box;">\n        ${content}\n    </div>`;
+  },
+
+  generateEducationalHTML(elements) {
+    return (
+      elements
+        .map((el) => this.wrapElementHTML(el, true, "code"))
+        .filter(Boolean)
+        .join("\n") + "\n"
+    );
+  },
+
+  generateCSSContent() {
+    const bgStyle = this.getPageBackgroundCSS();
     return `body {\n    font-family: system-ui, -apple-system, sans-serif;\n    line-height: 1.5;\n    margin: 0;\n    padding: 40px 20px;\n    background-color: #f1f5f9;\n}\n\n.container {\n    width: 100%;\n    max-width: 1200px;\n    margin: 0 auto;\n    ${bgStyle}\n    padding: 40px;\n    border-radius: 16px;\n    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);\n    display: flex;\n    flex-wrap: wrap;\n    align-content: flex-start;\n    align-items: stretch;\n    overflow: hidden;\n}\n\nimg {\n    max-width: 100%;\n    height: auto;\n}`;
   },
 
@@ -1026,18 +1265,10 @@ const htmlGenerator = {
     const bodyContent = addComments
       ? this.generateEducationalHTML(elements)
       : elements
-          .map((el) => {
-            const width = el.styles.width || "100%";
-            return `        <div style="width: ${width}; padding: 4px; box-sizing: border-box;">\n            ${getElementHTMLContent(el, true)}\n        </div>`;
-          })
+          .map((el) => this.wrapElementHTML(el, false, "code"))
+          .filter(Boolean)
           .join("\n");
 
-    let bgStyle = `background-color: ${state.pageSettings.backgroundColor};`;
-    if (state.pageSettings.backgroundImage) {
-      bgStyle += ` background-image: url('${state.pageSettings.backgroundImage}'); background-size: ${state.pageSettings.backgroundSize}; background-position: center; background-attachment: fixed;`;
-    }
-
-    // Pega todos os dados da página atual e transforma num texto seguro
     const projectData = JSON.stringify({
       elements: state.elements,
       pageSettings: state.pageSettings,
@@ -1049,30 +1280,9 @@ const htmlGenerator = {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SiteCanvas</title>
-    <link rel="icon" href="favicon.png" type="image/png">
+    <link rel="icon" href="./images/favicon.svg" type="image/svg+xml">
     <style>
-        body { 
-            font-family: system-ui, -apple-system, sans-serif; 
-            line-height: 1.5; 
-            margin: 0; 
-            padding: 40px 20px; 
-            ${bgStyle}
-        }
-        .container { 
-            width: 100%; 
-            max-width: 1200px; 
-            margin: 0 auto; 
-            ${bgStyle}
-            padding: 40px; 
-            border-radius: 16px; 
-            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); 
-            display: flex;
-            flex-wrap: wrap;
-            align-content: flex-start;
-            align-items: stretch;
-            overflow: hidden;
-        }
-        img { max-width: 100%; height: auto; }
+${this.generateCSSContent()}
     </style>
 </head>
 <body>
@@ -1082,6 +1292,20 @@ ${bodyContent}
     
     <!-- DADOS SECRETOS DO EDITOR (NÃO APAGUE SE QUISER IMPORTAR DE VOLTA) -->
     <script id="site-data" type="application/json">${projectData}</script>
+    <script>
+      if (location.protocol === "file:") {
+        document.querySelectorAll("iframe[data-yt-id]").forEach(function (f) {
+          var id = f.getAttribute("data-yt-id");
+          var a = document.createElement("a");
+          a.href = "https://www.youtube.com/watch?v=" + id;
+          a.target = "_blank";
+          a.rel = "noopener noreferrer";
+          a.style.cssText = f.style.cssText + "; position:relative; display:flex; align-items:center; justify-content:center; background:#0f172a url(https://i.ytimg.com/vi/" + id + "/hqdefault.jpg) center/cover no-repeat; text-decoration:none; overflow:hidden; min-height:250px;";
+          a.innerHTML = '<div style="position:absolute;inset:0;background:rgba(0,0,0,0.35)"></div><div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:10px"><div style="width:68px;height:48px;background:#ff0000;border-radius:12px;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 20px rgba(0,0,0,0.4)"><svg viewBox="0 0 24 24" width="28" height="28" fill="white"><polygon points="9.5 7.5 16.5 12 9.5 16.5 9.5 7.5"></polygon></svg></div><span style="background:rgba(15,23,42,0.85);color:#fff;font-family:sans-serif;font-size:0.8rem;font-weight:600;padding:6px 14px;border-radius:99px;border:1px solid rgba(255,255,255,0.2)">Assistir no YouTube</span></div>';
+          f.replaceWith(a);
+        });
+      }
+    </script>
 </body>
 </html>`;
   },
@@ -1091,31 +1315,24 @@ const actions = {
   showCode() {
     checkMission("m7");
     const htmlStr = htmlGenerator.generateEducationalHTML(state.elements);
-    const fullHTML = `<!DOCTYPE html>\n<html lang="pt-BR">\n<head>\n    <meta charset="UTF-8">\n    <title>SiteCanvas</title>\n    <link rel="icon" href="favicon.png" type="image/png">\n    <!-- As cores e o design estão na aba CSS ao lado! -->\n    <link rel="stylesheet" href="style.css">\n</head>\n<body>\n    <div class="container">\n${htmlStr}    </div>\n</body>\n</html>`;
+    const fullHTML = `<!DOCTYPE html>\n<html lang="pt-BR">\n<head>\n    <meta charset="UTF-8">\n    <title>SiteCanvas</title>\n    <link rel="icon" href="./images/favicon.svg" type="image/svg+xml">\n    <!-- As cores e o design estão na aba CSS ao lado! -->\n    <link rel="stylesheet" href="style.css">\n</head>\n<body>\n    <div class="container">${htmlStr}    </div>\n</body>\n</html>`;
 
     const safeHTML = fullHTML.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
-    // Colorizador de código seguro (Passo Único para evitar sobreposição de tags)
     const highlightedHTML = safeHTML.replace(
       /&lt;!--[\s\S]*?--&gt;|&lt;\/?[\w\-]+| [\w\-]+="[^"]*"/g,
-      function (match) {
+      (match) => {
         if (match.startsWith("&lt;!--"))
           return `<span class="text-slate-500 italic">${match}</span>`;
         if (match.startsWith("&lt;"))
           return `<span class="text-indigo-400">${match}</span>`;
-
-        // Separa os atributos (ex: style="...") com cores corretas
-        let eqIdx = match.indexOf("=");
-        let attrName = match.substring(0, eqIdx);
-        let attrVal = match.substring(eqIdx);
-        return `<span class="text-blue-300">${attrName}</span><span class="text-emerald-300">${attrVal}</span>`;
+        const eqIdx = match.indexOf("=");
+        return `<span class="text-blue-300">${match.substring(0, eqIdx)}</span><span class="text-emerald-300">${match.substring(eqIdx)}</span>`;
       },
     );
 
     document.getElementById("code-content-html").innerHTML = highlightedHTML;
     document.getElementById("code-content-css").textContent =
       htmlGenerator.generateCSSContent();
-
     if (typeof switchTab === "function") switchTab("html");
     document.getElementById("code-modal").showModal();
   },
@@ -1127,12 +1344,9 @@ const actions = {
       )
     ) {
       state.elements = [];
-      state.pageSettings = {
-        backgroundColor: "#ffffff",
-        backgroundImage: "",
-        backgroundSize: "cover",
-      };
-      localStorage.removeItem(STATE_KEY); // Limpa o Auto-save
+      state.selectedId = null;
+      state.pageSettings = { ...DEFAULT_PAGE_SETTINGS };
+      localStorage.removeItem(STATE_KEY);
       pushToHistory();
       renderAll();
     }
@@ -1143,62 +1357,44 @@ const actions = {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = function (e) {
-      const content = e.target.result;
-      // Procura o mapa secreto dentro do arquivo HTML
-      const match = content.match(
+    reader.onload = (e) => {
+      const match = e.target.result.match(
         /<script id="site-data" type="application\/json">([\s\S]*?)<\/script>/,
       );
-
       if (match && match[1]) {
         try {
           const importedData = JSON.parse(match[1]);
           state.elements = importedData.elements || [];
-          state.pageSettings = importedData.pageSettings || {
-            backgroundColor: "#ffffff",
-            backgroundImage: "",
-            backgroundSize: "cover",
+          state.selectedId = null;
+          state.pageSettings = {
+            ...DEFAULT_PAGE_SETTINGS,
+            ...(importedData.pageSettings || {}),
           };
           pushToHistory();
           renderAll();
-
-          // Dá 10 milissegundos para o navegador "respirar" e desenhar a tela antes de congelar no pop-up
-          setTimeout(() => {
-            alert("Site carregado com sucesso!");
-          }, 10);
+          setTimeout(() => alert("Site carregado com sucesso!"), 10);
         } catch (err) {
           alert("Erro ao ler os dados. O arquivo pode ter sido corrompido.");
         }
       }
-      event.target.value = ""; // Limpa a memória do input para permitir abrir o mesmo ficheiro de novo se necessário
+      event.target.value = "";
     };
     reader.readAsText(file);
   },
 
   previewSite() {
     checkMission("m8");
-
     const rawHTML = state.elements
-      .map((el) => {
-        const width = el.styles.width || "100%";
-        return `<div style="width: ${width}; padding: 4px; box-sizing: border-box;">${getElementHTMLContent(el, true)}</div>`;
-      })
+      .map((el) => htmlGenerator.wrapElementHTML(el, false))
+      .filter(Boolean)
       .join("");
-
-    let bgStyle = `background-color: ${state.pageSettings.backgroundColor};`;
-    if (state.pageSettings.backgroundImage) {
-      bgStyle += ` background-image: url('${state.pageSettings.backgroundImage}'); background-size: ${state.pageSettings.backgroundSize}; background-position: center; background-attachment: fixed;`;
-    }
-
-    const previewContainer = document.getElementById("preview-content");
-
-    previewContainer.innerHTML = `
-            <div style="min-height: 100vh; padding: 40px 20px; background-color: #f1f5f9;">
-                <div style="width: 100%; max-width: 1200px; margin: 0 auto; ${bgStyle} padding: 40px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); display: flex; flex-wrap: wrap; align-content: flex-start; align-items: flex-start; overflow: hidden;">
-                    ${rawHTML}
-                </div>
-            </div>
-        `;
+    const bgStyle = htmlGenerator.getPageBackgroundCSS();
+    document.getElementById("preview-content").innerHTML = `
+      <div style="min-height: 100vh; padding: 40px 20px; background-color: #f1f5f9;">
+        <div style="width: 100%; max-width: 1200px; margin: 0 auto; ${bgStyle} padding: 40px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); display: flex; flex-wrap: wrap; align-content: flex-start; align-items: stretch; overflow: hidden;">
+          ${rawHTML}
+        </div>
+      </div>`;
     document.getElementById("preview-modal").showModal();
   },
 
@@ -1207,10 +1403,9 @@ const actions = {
       appHistoryIndex--;
       const pastState = JSON.parse(appHistory[appHistoryIndex]);
       state.elements = pastState.elements;
-      state.pageSettings = pastState.pageSettings || {
-        backgroundColor: "#ffffff",
-        backgroundImage: "",
-        backgroundSize: "cover",
+      state.pageSettings = {
+        ...DEFAULT_PAGE_SETTINGS,
+        ...(pastState.pageSettings || {}),
       };
       saveState();
       renderAll();
@@ -1222,10 +1417,9 @@ const actions = {
       appHistoryIndex++;
       const futureState = JSON.parse(appHistory[appHistoryIndex]);
       state.elements = futureState.elements;
-      state.pageSettings = futureState.pageSettings || {
-        backgroundColor: "#ffffff",
-        backgroundImage: "",
-        backgroundSize: "cover",
+      state.pageSettings = {
+        ...DEFAULT_PAGE_SETTINGS,
+        ...(futureState.pageSettings || {}),
       };
       saveState();
       renderAll();
@@ -1234,21 +1428,20 @@ const actions = {
 
   updatePageSettings(key, value, redrawPanel = false) {
     state.pageSettings[key] = value;
-    pushToHistory();
-    renderCanvas();
-
-    // Só redesenha o painel lateral se for estritamente necessário (redrawPanel = true)
+    if (key === "backgroundColor") checkMission("m2");
+    if (key === "backgroundImage" && value) checkMission("m3");
+    updateCanvasBackground();
     if (redrawPanel) {
+      pushToHistory();
       renderPropertiesPanel();
+    } else {
+      scheduleHistoryPush();
     }
   },
 
   exportSite() {
-    // NOVO: Pergunta o nome da página antes de salvar
     let fileName = prompt("Dê um nome para esta página:", "index");
-    if (!fileName) return; // Cancela se o aluno fechar a janela
-
-    // Remove espaços e garante que termina em .html
+    if (!fileName) return;
     fileName = fileName.trim().replace(/\s+/g, "-").toLowerCase();
     if (!fileName.endsWith(".html")) fileName += ".html";
 
@@ -1258,7 +1451,7 @@ const actions = {
 
     const a = document.createElement("a");
     a.href = url;
-    a.download = fileName; // Usa o nome escolhido pelo aluno
+    a.download = fileName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -1280,82 +1473,57 @@ window.onload = () => {
     group: "shared",
     animation: 150,
     ghostClass: "opacity-50",
-    filter: ".empty-state-msg", // Impede que o bloco vazio seja arrastado
-    onEnd: function (evt) {
-      if (evt.from === evt.to) {
+    filter: ".empty-state-msg",
+    onEnd(evt) {
+      if (evt.from === evt.to && evt.oldIndex !== evt.newIndex) {
         const movedItem = state.elements.splice(evt.oldIndex, 1)[0];
         state.elements.splice(evt.newIndex, 0, movedItem);
         pushToHistory();
         renderAll();
       }
     },
-    onAdd: function (evt) {
+    onAdd(evt) {
       const type = evt.item.dataset.type;
       evt.item.parentNode.removeChild(evt.item);
-
-      const block = blockTypes.find((b) => b.type === type);
-      const newEl = {
-        id: generateId(),
-        type: block.type,
-        ...JSON.parse(JSON.stringify(block.defaultProps)),
-      };
-
-      // Garante que o cálculo matemático não falha ao ser o primeiro bloco
-      let targetIndex = state.elements.length === 0 ? 0 : evt.newIndex;
-
-      state.elements.splice(targetIndex, 0, newEl);
-      state.selectedId = newEl.id;
-
-      if (block.type === "image") checkMission("m3");
-      if (block.type === "list") checkMission("m4");
-      if (block.type === "link") checkMission("m5");
-
-      pushToHistory();
-      renderAll();
+      addBlock(type, state.elements.length === 0 ? 0 : evt.newIndex);
     },
   });
 };
 
 document.addEventListener("keydown", (e) => {
-  if (e.ctrlKey && e.key === "z") {
+  if (e.ctrlKey && e.key.toLowerCase() === "z") {
     e.preventDefault();
     actions.undo();
   }
-  if (e.ctrlKey && e.key === "y") {
+  if (e.ctrlKey && e.key.toLowerCase() === "y") {
     e.preventDefault();
     actions.redo();
   }
 });
 
-// --- PROTEÇÃO CONTRA SAÍDA ACIDENTAL ---
-window.addEventListener("beforeunload", function (e) {
+window.addEventListener("beforeunload", (e) => {
   if (state.elements.length > 0 || appHistoryIndex > 0) {
     e.preventDefault();
-    return ""; // Substituto moderno que ativa o alerta nativo
+    return "";
   }
 });
 
-// --- CONTROLE DE ABAS (HTML/CSS) ---
 window.switchTab = function (tab) {
   const tabHtml = document.getElementById("tab-html");
   const tabCss = document.getElementById("tab-css");
   const contentHtml = document.getElementById("code-content-html");
   const contentCss = document.getElementById("code-content-css");
 
-  if (tab === "html") {
-    tabHtml.className =
-      "text-sm text-white font-bold flex items-center gap-2 border-b-2 border-indigo-500 pb-3 px-2 transition";
-    tabCss.className =
-      "text-sm text-slate-500 hover:text-white font-bold flex items-center gap-2 border-b-2 border-transparent pb-3 px-2 transition";
-    contentHtml.classList.remove("hidden");
-    contentCss.classList.add("hidden");
-  } else {
-    tabCss.className =
-      "text-sm text-white font-bold flex items-center gap-2 border-b-2 border-pink-500 pb-3 px-2 transition";
-    tabHtml.className =
-      "text-sm text-slate-500 hover:text-white font-bold flex items-center gap-2 border-b-2 border-transparent pb-3 px-2 transition";
-    contentCss.classList.remove("hidden");
-    contentHtml.classList.add("hidden");
-  }
+  const activeClass = (borderColor) =>
+    `text-sm text-white font-bold flex items-center gap-2 border-b-2 ${borderColor} pb-3 px-2 transition`;
+  const inactiveClass =
+    "text-sm text-slate-500 hover:text-white font-bold flex items-center gap-2 border-b-2 border-transparent pb-3 px-2 transition";
+
+  const isHtml = tab === "html";
+  tabHtml.className = isHtml ? activeClass("border-indigo-500") : inactiveClass;
+  tabCss.className = !isHtml ? activeClass("border-pink-500") : inactiveClass;
+  contentHtml.classList.toggle("hidden", !isHtml);
+  contentCss.classList.toggle("hidden", isHtml);
+
   replaceIcons();
 };
